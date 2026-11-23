@@ -10,15 +10,15 @@ export const GET = route(async (req: Request) => {
   const limit = Math.min(Number(url.searchParams.get("limit") ?? 100), 500);
   const offset = Number(url.searchParams.get("offset") ?? 0);
   const rows = eventId
-    ? ctx.db.all(
+    ? (await ctx.db.all(
         `SELECT a.*, u.name actor_name FROM audit_logs a LEFT JOIN users u ON u.id = a.actor_id
          WHERE a.organization_id = ? AND a.event_id = ? ORDER BY a.created_at DESC LIMIT ? OFFSET ?`,
         ctx.actor.orgId, eventId, limit, offset
-      )
-    : ctx.db.all(
+      ))
+    : (await ctx.db.all(
         `SELECT a.*, u.name actor_name FROM audit_logs a LEFT JOIN users u ON u.id = a.actor_id
          WHERE a.organization_id = ? ORDER BY a.created_at DESC LIMIT ? OFFSET ?`,
         ctx.actor.orgId, limit, offset
-      );
+      ));
   return ok(rows);
 });

@@ -6,10 +6,10 @@ type P = { params: Promise<{ id: string }> };
 
 export const GET = route(async (req: Request, { params }: P) => {
   const { id } = await params;
-  return ok(listPlanningTeam(await buildCtx(clientIp(req)), id));
+  return ok((await listPlanningTeam(await buildCtx(clientIp(req)), id)));
 });
 
 export const POST = route(async (req: Request, { params }: P) => {
   const { id } = await params;
-  return ok(addPlanningMember(await buildCtx(clientIp(req)), id, await readJson(req)), 201);
+  return ok((await addPlanningMember(await buildCtx(clientIp(req)), id, await readJson(req))), 201);
 });

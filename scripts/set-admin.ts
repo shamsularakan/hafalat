@@ -15,10 +15,10 @@ if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
   process.exit(1);
 }
 
-const db = getDb();
-const user = db.get<{ id: string; name: string; email: string; is_platform_admin: number }>(
+const db = (await getDb());
+const user = (await db.get<{ id: string; name: string; email: string; is_platform_admin: number }>(
   "SELECT id, name, email, is_platform_admin FROM users WHERE email = ?", email
-);
+));
 if (!user) {
   console.error(`✘ لا يوجد مستخدم بهذا البريد: ${email} — سجّل عبر /register أولًا.`);
   process.exit(1);
@@ -30,18 +30,18 @@ if (user.is_platform_admin === target) {
   process.exit(0);
 }
 
-db.tx(() => {
-  db.run("UPDATE users SET is_platform_admin = ? WHERE id = ?", target, user.id);
-  writeAudit(db, {
+(await db.tx(async () => {
+  (await db.run("UPDATE users SET is_platform_admin = ? WHERE id = ?", target, user.id));
+  (await writeAudit(db, {
     orgId: "platform",
     actorId: null,
     action: revoke ? "platform.admin.revoke" : "platform.admin.grant",
     objectType: "user",
     objectId: user.id,
     detail: { email, name: user.name },
-  });
-});
+  }));
+}));
 
-const check = db.get<{ is_platform_admin: number }>("SELECT is_platform_admin FROM users WHERE id = ?", user.id)!;
+const check = (await db.get<{ is_platform_admin: number }>("SELECT is_platform_admin FROM users WHERE id = ?", user.id))!;
 console.log(`✔ «${user.name}» (${email}) — ${revoke ? "صُلاحية المدير سُحبت" : "مدير عام للمنصة"} · is_platform_admin=${check.is_platform_admin}`);
 db.close();

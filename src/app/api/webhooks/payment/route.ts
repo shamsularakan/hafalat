@@ -6,5 +6,5 @@ import { handlePaymentWebhook } from "@/server/services/billing";
 export const POST = route(async (req: Request) => {
   const payload = await req.text();
   const signature = req.headers.get("x-webhook-signature") ?? "";
-  return ok(handlePaymentWebhook(getDb(), payload, signature));
+  return ok((await handlePaymentWebhook((await getDb()), payload, signature)));
 });

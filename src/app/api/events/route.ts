@@ -4,11 +4,11 @@ import { createEvent, listEvents } from "@/server/services/events";
 
 export const GET = route(async (req: Request) => {
   const ctx = await buildCtx(clientIp(req));
-  return ok(listEvents(ctx));
+  return ok((await listEvents(ctx)));
 });
 
 export const POST = route(async (req: Request) => {
   const ctx = await buildCtx(clientIp(req));
   const body = await readJson(req);
-  return ok(createEvent(ctx, body), 201);
+  return ok((await createEvent(ctx, body)), 201);
 });

@@ -12,7 +12,7 @@ export const POST = route(async (req: Request, { params }: P) => {
     const { AppError } = await import("@/lib/errors");
     throw new AppError("VALIDATION", "محتوى CSV مطلوب");
   }
-  return ok(importGuests(ctx, id, {
+  return ok((await importGuests(ctx, id, {
     csv: body.csv, mapping: body.mapping, dryRun: body.dryRun !== false, filename: body.filename,
-  }));
+  })));
 });

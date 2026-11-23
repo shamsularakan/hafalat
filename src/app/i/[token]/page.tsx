@@ -12,7 +12,7 @@ export const metadata = { title: "دعوتك", robots: { index: false, follow: f
 export default async function GuestPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   try {
-    const payload = getGuestPage(getDb(), token);
+    const payload = (await getGuestPage((await getDb()), token));
     return <GuestClient payload={payload} token={token} />;
   } catch (e) {
     const message =

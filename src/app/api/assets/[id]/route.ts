@@ -8,7 +8,7 @@ type P = { params: Promise<{ id: string }> };
 export const GET = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
-  const { asset, full } = getAssetForOwner(ctx, id);
+  const { asset, full } = (await getAssetForOwner(ctx, id));
   const data = fs.readFileSync(full);
   return new Response(data, {
     headers: {
@@ -23,5 +23,5 @@ export const GET = route(async (req: Request, { params }: P) => {
 export const DELETE = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
-  return ok(deleteMedia(ctx, id));
+  return ok((await deleteMedia(ctx, id)));
 });

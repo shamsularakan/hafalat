@@ -6,5 +6,5 @@ type P = { params: Promise<{ id: string }> };
 
 export const GET = route(async (req: Request, { params }: P) => {
   const { id } = await params;
-  return ok(financeSummary(await buildCtx(clientIp(req)), id));
+  return ok((await financeSummary(await buildCtx(clientIp(req)), id)));
 });

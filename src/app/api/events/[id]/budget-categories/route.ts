@@ -12,5 +12,5 @@ export const GET = route(async (req: Request, { params }: P) => {
 export const POST = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const b = await readJson(req);
-  return ok(saveBudgetCategory(await buildCtx(clientIp(req)), id, b, b.id), 201);
+  return ok((await saveBudgetCategory(await buildCtx(clientIp(req)), id, b, b.id)), 201);
 });

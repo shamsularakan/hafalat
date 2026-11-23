@@ -13,10 +13,10 @@ export const POST = route(async (req: Request) => {
     throw new AppError("VALIDATION", "المعرّف وكلمة المرور مطلوبان");
   }
   rateLimit(`login-id:${String(body.identifier).toLowerCase()}`, 10, 60e3);
-  const db = getDb();
-  const session = login(db, body.identifier, body.password, req.headers.get("user-agent") ?? undefined);
-  claimPendingDelegations(db, session.user.id, session.user.phone, session.user.email);
-  const org = defaultOrgFor(db, session.user.id);
+  const db = (await getDb());
+  const session = (await login(db, body.identifier, body.password, req.headers.get("user-agent") ?? undefined));
+  (await claimPendingDelegations(db, session.user.id, session.user.phone, session.user.email));
+  const org = (await defaultOrgFor(db, session.user.id));
   const res = ok({ user: { id: session.user.id, name: session.user.name, email: session.user.email, is_platform_admin: session.user.is_platform_admin } });
   const maxAge = Math.floor((Date.parse(session.expiresAt) - Date.now()) / 1000);
   const secure = req.headers.get("x-forwarded-proto") === "https" || process.env.DAWAT_COOKIE_SECURE === "true" ? "; Secure" : "";

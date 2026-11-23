@@ -9,7 +9,7 @@ type P = { params: Promise<{ id: string }> };
 export const DELETE = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
-  const m = getDb().get<{ event_id: string }>("SELECT event_id FROM planning_team WHERE id = ?", id);
+  const m = (await (await getDb()).get<{ event_id: string }>("SELECT event_id FROM planning_team WHERE id = ?", id));
   if (!m) err("NOT_FOUND");
-  return ok(removePlanningMember(ctx, m.event_id, id));
+  return ok((await removePlanningMember(ctx, m.event_id, id)));
 });

@@ -103,29 +103,29 @@ BUILTIN_TEMPLATES.push(
   extra("tpl-festival", "مهرجان نابض", "festival", "festival", { bg: "#4A3B36", card: "#62534F", primary: "#C99A70", text: "#FBF8F5", muted: "#C9B7A6", ornament: "✦", title: "المهرجان", subtitle: "أهلًا وسهلًا بكم", message: "استمتعوا ببرنامج المهرجان وفعالياته المتنوعة." })
 );
 
-export function seedPlans(db: DB) {
-  PLANS_SEED.forEach((p, i) => {
-    db.run(
+export async function seedPlans(db: DB) {
+  PLANS_SEED.forEach(async (p, i) => {
+    (await db.run(
       `INSERT INTO plans (id, name_ar, price_monthly_sar, max_active_events, max_guests_per_event, max_delegates_per_event, storage_mb, advanced_templates, custom_branding, multi_seat, sort_order)
        VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`,
       p.id, p.name_ar, p.price_monthly_sar, p.max_active_events, p.max_guests_per_event,
       p.max_delegates_per_event, p.storage_mb, p.advanced_templates, p.custom_branding, p.multi_seat, i
-    );
+    ));
   });
 }
 
-export function seedTemplates(db: DB) {
+export async function seedTemplates(db: DB) {
   const categories: Record<string, string> = {
     "tpl-royal": "wedding", "tpl-modern": "wedding", "tpl-heritage": "wedding",
     "tpl-romantic": "engagement", "tpl-formal": "conference", "tpl-corporate": "meeting",
   };
   for (const t of BUILTIN_TEMPLATES) {
     const category = t.category ?? categories[t.id] ?? "wedding";
-    db.run(
+    (await db.run(
       `INSERT INTO templates (id, organization_id, name_ar, style, category, visibility, version, schema_json)
        VALUES (?, NULL, ?, ?, ?, 'public', 1, ?)
        ON CONFLICT(id) DO UPDATE SET category = excluded.category`,
       t.id, t.name_ar, t.style, category, JSON.stringify(t.schema)
-    );
+    ));
   }
 }

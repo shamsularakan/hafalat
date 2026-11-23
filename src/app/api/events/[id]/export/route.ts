@@ -8,7 +8,7 @@ export const GET = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
   const kind = (new URL(req.url).searchParams.get("kind") ?? "summary") as any;
-  const csv = exportReport(ctx, id, kind);
+  const csv = (await exportReport(ctx, id, kind));
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

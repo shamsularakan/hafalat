@@ -12,8 +12,8 @@ export interface AuditInput {
 }
 
 /** سجل تدقيق للعمليات الحساسة (القسم 02/11) — لا تُسجل رموز خام أو بيانات حساسة */
-export function writeAudit(db: DB, input: AuditInput) {
-  db.run(
+export async function writeAudit(db: DB, input: AuditInput) {
+  (await db.run(
     `INSERT INTO audit_logs (id, organization_id, event_id, actor_id, action, object_type, object_id, detail_json, ip, created_at)
      VALUES (?,?,?,?,?,?,?,?,?,?)`,
     newId(),
@@ -26,5 +26,5 @@ export function writeAudit(db: DB, input: AuditInput) {
     input.detail ? JSON.stringify(input.detail) : null,
     input.ip ?? null,
     nowIso()
-  );
+  ));
 }

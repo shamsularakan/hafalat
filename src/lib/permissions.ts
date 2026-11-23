@@ -56,11 +56,11 @@ export interface DelegationRow {
   created_by: string;
 }
 
-export function getOrgMembership(db: DB, orgId: string, userId: string) {
-  return db.get<{ role: OrgRole }>(
+export async function getOrgMembership(db: DB, orgId: string, userId: string) {
+  return (await db.get<{ role: OrgRole }>(
     "SELECT role FROM organization_members WHERE organization_id = ? AND user_id = ?",
     orgId, userId
-  );
+  ));
 }
 
 export function requireOrgRole(ctx: Ctx, roles: OrgRole[]) {
@@ -69,11 +69,11 @@ export function requireOrgRole(ctx: Ctx, roles: OrgRole[]) {
 }
 
 /** تحميل مناسبة ضمن نطاق المنظمة فقط — عزل المستأجرين (AC-01) */
-export function loadEventScoped(db: DB, orgId: string, eventId: string): EventRow {
-  const ev = db.get<EventRow>(
+export async function loadEventScoped(db: DB, orgId: string, eventId: string): Promise<EventRow>{
+  const ev = (await db.get<EventRow>(
     "SELECT * FROM events WHERE id = ? AND organization_id = ?",
     eventId, orgId
-  );
+  ));
   if (!ev) err("NOT_FOUND", "المناسبة غير موجودة");
   return ev;
 }
@@ -83,11 +83,11 @@ const ROLE_RANK: Record<EventRole, number> = {
 };
 
 /** الدور الفعّال للمستخدم على مناسبة: عضوية مباشرة، أو اشتقاقًا من دور المنظمة */
-export function effectiveEventRole(db: DB, ctx: Ctx, event: EventRow): EventRole | null {
-  const rows = db.all<{ role: EventRole }>(
+export async function effectiveEventRole(db: DB, ctx: Ctx, event: EventRow): Promise<EventRole | null>{
+  const rows = (await db.all<{ role: EventRole }>(
     "SELECT role FROM event_members WHERE event_id = ? AND user_id = ?",
     event.id, ctx.actor.user.id
-  );
+  ));
   let best: EventRole | null = null;
   for (const r of rows) {
     if (!best || ROLE_RANK[r.role] > ROLE_RANK[best]) best = r.role;
@@ -108,27 +108,27 @@ export interface EventAccess {
 }
 
 /** حاجز الوصول للمناسبة: عضوية + دور مسموح (AC-01 / AC-10) */
-export function requireEventAccess(
+export async function requireEventAccess(
   ctx: Ctx, eventId: string, allowed: EventRole[]
-): EventAccess {
-  const event = loadEventScoped(ctx.db, ctx.actor.orgId, eventId);
-  const role = effectiveEventRole(ctx.db, ctx, event);
+): Promise<EventAccess>{
+  const event = (await loadEventScoped(ctx.db, ctx.actor.orgId, eventId));
+  const role = (await effectiveEventRole(ctx.db, ctx, event));
   if (!role || !allowed.includes(role)) err("FORBIDDEN", "لا تملك صلاحية على هذه المناسبة");
   let delegation: DelegationRow | null = null;
   if (role === "delegate" || role === "supervisor") {
-    delegation = getActiveDelegation(ctx.db, event.id, ctx.actor.user.id, role);
+    delegation = (await getActiveDelegation(ctx.db, event.id, ctx.actor.user.id, role));
   }
   return { event, role, delegation };
 }
 
-export function getActiveDelegation(
+export async function getActiveDelegation(
   db: DB, eventId: string, userId: string, role?: string
-): DelegationRow | null {
-  const d = db.get<DelegationRow>(
+): Promise<DelegationRow | null>{
+  const d = (await db.get<DelegationRow>(
     `SELECT * FROM delegations WHERE event_id = ? AND user_id = ? AND status IN ('active','pending')
      ${role ? "AND role = ?" : ""} ORDER BY created_at DESC LIMIT 1`,
     ...(role ? [eventId, userId, role] : [eventId, userId])
-  );
+  ));
   return d ?? null;
 }
 
@@ -151,19 +151,19 @@ export function assertDelegationUsable(d: DelegationRow | null, action: keyof De
 }
 
 /** حاجز موظف الاستقبال: البوابة ضمن تكليفه (AC-10) */
-export function assertGateAccess(ctx: Ctx, event: EventRow, role: EventRole, gateId: string | null) {
+export async function assertGateAccess(ctx: Ctx, event: EventRow, role: EventRole, gateId: string | null) {
   if (role === "owner" || role === "manager" || role === "supervisor") return;
   const gate = gateId
-    ? ctx.db.get<{ id: string; event_id: string }>(
+    ? (await ctx.db.get<{ id: string; event_id: string }>(
         "SELECT id, event_id FROM gates WHERE id = ? AND organization_id = ?",
         gateId, ctx.actor.orgId
-      )
+      ))
     : null;
   if (gateId && (!gate || gate.event_id !== event.id)) err("NOT_FOUND", "البوابة غير موجودة");
-  const mem = ctx.db.get<{ permissions: string }>(
+  const mem = (await ctx.db.get<{ permissions: string }>(
     "SELECT permissions FROM event_members WHERE event_id = ? AND user_id = ? AND role = 'receptionist'",
     event.id, ctx.actor.user.id
-  );
+  ));
   let allowedGates: string[] = [];
   try { allowedGates = JSON.parse(mem?.permissions ?? "{}").gates ?? []; } catch { /* */ }
   if (allowedGates.length > 0 && gateId && !allowedGates.includes(gateId))

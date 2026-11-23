@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Field, Select } from "@/components/ui/input";
 import { ErrorState } from "@/components/ui/feedback";
 
-export default function RegisterPage() {
+export default async function RegisterPage() {
   const router = useRouter();
   const [form, setForm] = React.useState({
     name: "", email: "", phone: "", password: "", orgName: "", orgKind: "individual",

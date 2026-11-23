@@ -7,9 +7,9 @@ import { err } from "@/lib/errors";
 /** قوالب نصوص الإرسال بمعاملات {اسم_الضيف} و{رابط_الدعوة} و{اسم_المناسبة} */
 export const GET = route(async (req: Request) => {
   const ctx = await buildCtx(clientIp(req));
-  return ok(ctx.db.all(
+  return ok((await ctx.db.all(
     "SELECT * FROM message_templates WHERE organization_id = ? ORDER BY created_at", ctx.actor.orgId
-  ));
+  )));
 });
 
 export const POST = route(async (req: Request) => {
@@ -19,9 +19,9 @@ export const POST = route(async (req: Request) => {
   if (!name?.trim() || !body?.trim()) err("VALIDATION", "الاسم والنص مطلوبان");
   if (body.length > 2000) err("VALIDATION", "النص طويل جدًا");
   const id = newId();
-  ctx.db.run(
+  (await ctx.db.run(
     "INSERT INTO message_templates (id, organization_id, name, channel, body) VALUES (?,?,?,'whatsapp_manual',?)",
     id, ctx.actor.orgId, name.trim(), body.trim()
-  );
-  return ok(ctx.db.get("SELECT * FROM message_templates WHERE id = ?", id), 201);
+  ));
+  return ok((await ctx.db.get("SELECT * FROM message_templates WHERE id = ?", id)), 201);
 });

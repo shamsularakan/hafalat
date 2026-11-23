@@ -17,7 +17,7 @@ export default function LoginPage() {
   );
 }
 
-function LoginForm() {
+async function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const [identifier, setIdentifier] = React.useState("");

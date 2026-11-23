@@ -7,13 +7,13 @@ type P = { params: Promise<{ id: string }> };
 export const GET = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const u = new URL(req.url);
-  return ok(listTasks(await buildCtx(clientIp(req)), id, {
+  return ok((await listTasks(await buildCtx(clientIp(req)), id, {
     status: u.searchParams.get("status") ?? undefined,
     category: u.searchParams.get("category") ?? undefined,
-  }));
+  })));
 });
 
 export const POST = route(async (req: Request, { params }: P) => {
   const { id } = await params;
-  return ok(saveTask(await buildCtx(clientIp(req)), id, await readJson(req)), 201);
+  return ok((await saveTask(await buildCtx(clientIp(req)), id, await readJson(req))), 201);
 });

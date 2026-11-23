@@ -7,7 +7,7 @@ import { createGuest } from "@/server/services/guests";
 import { issueInvitation } from "@/server/services/invitations";
 import { getGuestPage } from "@/server/services/rsvp";
 
-describe("محرك العرض الموحّد", () => {
+describe("محرك العرض الموحّد", async () => {
   it("يستبدل المتغيرات المسموحة ويُنظّف النص من HTML والسكربت", () => {
     const vars = { "guest.name": "أحمد محمد", "event.name": "حفل زفاف" };
     expect(substitute("مرحبًا {{guest.name}} في {{event.name}}", vars)).toBe("مرحبًا أحمد محمد في حفل زفاف");
@@ -22,15 +22,15 @@ describe("محرك العرض الموحّد", () => {
     expect(scenes.every((s) => s.layers.length > 0)).toBe(true);
   });
 
-  it("يحقن بيانات الضيف والمناسبة في صفحة الدعوة دون كشف بيانات غيره", () => {
-    const { a } = setup();
-    const ev = publishedEvent(a.ctx);
-    const group = a.ctx.db.get<any>("SELECT id FROM guest_groups WHERE event_id = ? AND name = 'عائلات'", ev.id)!;
-    const g1 = createGuest(a.ctx, ev.id, { name: "ضيف أول", phone: "+966512340001", group_id: group.id });
-    const g2 = createGuest(a.ctx, ev.id, { name: "ضيف ثانٍ", phone: "+966512340002" });
-    const i1 = issueInvitation(a.ctx, ev.id, { guest_id: g1.id });
-    issueInvitation(a.ctx, ev.id, { guest_id: g2.id });
-    const page = getGuestPage(a.ctx.db, i1.token);
+  it("يحقن بيانات الضيف والمناسبة في صفحة الدعوة دون كشف بيانات غيره", async () => {
+    const { a } = (await setup());
+    const ev = (await publishedEvent(a.ctx));
+    const group = (await a.ctx.db.get<any>("SELECT id FROM guest_groups WHERE event_id = ? AND name = 'عائلات'", ev.id))!;
+    const g1 = (await createGuest(a.ctx, ev.id, { name: "ضيف أول", phone: "+966512340001", group_id: group.id }));
+    const g2 = (await createGuest(a.ctx, ev.id, { name: "ضيف ثانٍ", phone: "+966512340002" }));
+    const i1 = (await issueInvitation(a.ctx, ev.id, { guest_id: g1.id }));
+    (await issueInvitation(a.ctx, ev.id, { guest_id: g2.id }));
+    const page = (await getGuestPage(a.ctx.db, i1.token));
     expect(page.guest_name).toBe("ضيف أول");
     expect(page.vars["guest.name"]).toBe("ضيف أول");
     expect(page.vars["guest.allowed_companions"]).toBe(5);

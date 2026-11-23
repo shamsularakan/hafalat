@@ -7,12 +7,12 @@ type P = { params: Promise<{ id: string }> };
 export const GET = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
-  return ok(getEvent(ctx, id));
+  return ok((await getEvent(ctx, id)));
 });
 
 export const PATCH = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
   const body = await readJson(req);
-  return ok(updateEvent(ctx, id, body));
+  return ok((await updateEvent(ctx, id, body)));
 });

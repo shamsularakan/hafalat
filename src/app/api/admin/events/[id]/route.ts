@@ -12,14 +12,14 @@ export const PATCH = route(async (req: Request, { params }: { params: Promise<{ 
   if (!["published", "ongoing", "ended", "archived", "cancelled"].includes(status))
     err("VALIDATION", "حالة غير صالحة");
   if (!reason?.trim()) err("VALIDATION", "سبب التدخل الإشرافي مطلوب");
-  const db = getDb();
-  const before = db.get<any>("SELECT id, title, status FROM events WHERE id = ?", id);
+  const db = (await getDb());
+  const before = (await db.get<any>("SELECT id, title, status FROM events WHERE id = ?", id));
   if (!before) err("NOT_FOUND", "المناسبة غير موجودة");
-  db.run("UPDATE events SET status = ?, updated_at = ? WHERE id = ?", status, new Date().toISOString(), id);
-  writeAudit(db, {
+  (await db.run("UPDATE events SET status = ?, updated_at = ? WHERE id = ?", status, new Date().toISOString(), id));
+  (await writeAudit(db, {
     orgId: "platform", actorId: admin.id, action: "platform.event.moderate",
     objectType: "event", objectId: id,
     detail: { from: before.status, to: status, title: before.title, reason: reason.trim() }, ip: clientIp(req),
-  });
+  }));
   return ok({ ok: true });
 });

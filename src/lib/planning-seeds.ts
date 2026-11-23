@@ -74,13 +74,13 @@ export const PLANNING_TEMPLATES: PlanningTemplate[] = [
     [["preparation", "التخطيط", -90], ["preparation", "التجهيز", -30], ["event_day", "الفعالية", 0], ["after", "التقرير", 5]]),
 ];
 
-export function seedPlanningTemplates(db: DB) {
+export async function seedPlanningTemplates(db: DB) {
   for (const t of PLANNING_TEMPLATES) {
-    db.run(
+    (await db.run(
       `INSERT INTO planning_templates (id, event_type, name_ar, tasks_json, categories_json, checklist_json, timeline_json, version)
        VALUES (?,?,?,?,?,?,?,1) ON CONFLICT(event_type) DO NOTHING`,
       `tpl-plan-${t.event_type}`, t.event_type, t.name_ar,
       JSON.stringify(t.tasks), JSON.stringify(t.categories), JSON.stringify(t.checklist), JSON.stringify(t.timeline)
-    );
+    ));
   }
 }

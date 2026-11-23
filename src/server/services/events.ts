@@ -55,13 +55,13 @@ function validateInput(input: Partial<EventInput>, partial = false) {
     err("VALIDATION", "تاريخ النهاية قبل البداية");
 }
 
-export function createEvent(ctx: Ctx, input: EventInput) {
+export async function createEvent(ctx: Ctx, input: EventInput) {
   requireOrgRole(ctx, ["owner", "admin", "member"]);
   validateInput(input);
-  assertPlanEventLimit(ctx.db, ctx.actor.orgId);
+  (await assertPlanEventLimit(ctx.db, ctx.actor.orgId));
   const id = newId();
-  const event = ctx.db.tx(() => {
-    ctx.db.run(
+  const event = (await ctx.db.tx(async () => {
+    (await ctx.db.run(
       `INSERT INTO events (id, organization_id, owner_id, title, type, host_name, description, starts_at, ends_at, timezone,
         venue_name, venue_address, map_url, is_virtual, virtual_url, capacity, quota_unit, cancel_returns_quota, rsvp_deadline, allow_reentry, status)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'draft')`,
@@ -75,11 +75,11 @@ export function createEvent(ctx: Ctx, input: EventInput) {
       input.capacity ?? 100, input.quota_unit ?? "card",
       input.cancel_returns_quota === false ? 0 : 1,
       input.rsvp_deadline ?? null, input.allow_reentry ? 1 : 0
-    );
-    ctx.db.run(
+    ));
+    (await ctx.db.run(
       "INSERT INTO event_members (id, event_id, organization_id, user_id, role) VALUES (?,?,?,?,'owner')",
       newId(), id, ctx.actor.orgId, ctx.actor.user.id
-    );
+    ));
     // فئات افتراضية + بوابة رئيسية
     const groups = [
       { name: "VIP", kind: "vip", companion_max: 4, is_vip: 1, sort: 0 },
@@ -88,37 +88,37 @@ export function createEvent(ctx: Ctx, input: EventInput) {
       { name: "شركات", kind: "corporate", companion_max: 2, is_vip: 0, sort: 3 },
     ];
     for (const g of groups) {
-      ctx.db.run(
+      (await ctx.db.run(
         "INSERT INTO guest_groups (id, event_id, organization_id, name, kind, companion_max, is_vip, sort_order) VALUES (?,?,?,?,?,?,?,?)",
         newId(), id, ctx.actor.orgId, g.name, g.kind, g.companion_max, g.is_vip, g.sort
-      );
+      ));
     }
-    ctx.db.run(
+    (await ctx.db.run(
       "INSERT INTO gates (id, event_id, organization_id, name) VALUES (?,?,?,'البوابة الرئيسية')",
       newId(), id, ctx.actor.orgId
-    );
-    writeAudit(ctx.db, {
+    ));
+    (await writeAudit(ctx.db, {
       orgId: ctx.actor.orgId, eventId: id, actorId: ctx.actor.user.id,
       action: "event.create", objectType: "event", objectId: id,
       detail: { title: input.title, type: input.type }, ip: ctx.ip,
-    });
-    return loadEventScoped(ctx.db, ctx.actor.orgId, id);
-  });
+    }));
+    return (await loadEventScoped(ctx.db, ctx.actor.orgId, id));
+  }));
   // خطة تلقائية حسب نوع المناسبة (مهام/ميزانية/قائمة تجهيز/جدول زمني)
-  try { applyTemplate(ctx, id); } catch { /* لا يمنع إنشاء المناسبة إن تعذر القالب */ }
+  try { (await applyTemplate(ctx, id)); } catch { /* لا يمنع إنشاء المناسبة إن تعذر القالب */ }
   return event;
 }
 
-export function listEvents(ctx: Ctx) {
+export async function listEvents(ctx: Ctx) {
   const role = ctx.actor.orgRole;
   if (role === "owner" || role === "admin" || ctx.actor.isPlatformAdmin) {
-    return ctx.db.all(
+    return (await ctx.db.all(
       "SELECT * FROM events WHERE organization_id = ? ORDER BY created_at DESC",
       ctx.actor.orgId
-    );
+    ));
   }
   // عضو/مفوّض/استقبال: فقط المناسبات المكلف بها
-  return ctx.db.all(
+  return (await ctx.db.all(
     `SELECT e.* FROM events e
      WHERE e.organization_id = ? AND (
        e.owner_id = ? OR
@@ -126,20 +126,20 @@ export function listEvents(ctx: Ctx) {
        EXISTS (SELECT 1 FROM delegations d WHERE d.event_id = e.id AND d.user_id = ? AND d.status IN ('active','pending'))
      ) ORDER BY e.created_at DESC`,
     ctx.actor.orgId, ctx.actor.user.id, ctx.actor.user.id, ctx.actor.user.id
-  );
+  ));
 }
 
-export function getEvent(ctx: Ctx, eventId: string) {
-  const event = loadEventScoped(ctx.db, ctx.actor.orgId, eventId);
-  const role = effectiveEventRole(ctx.db, ctx, event);
+export async function getEvent(ctx: Ctx, eventId: string) {
+  const event = (await loadEventScoped(ctx.db, ctx.actor.orgId, eventId));
+  const role = (await effectiveEventRole(ctx.db, ctx, event));
   if (!role) err("FORBIDDEN");
-  const groups = ctx.db.all("SELECT * FROM guest_groups WHERE event_id = ? ORDER BY sort_order", eventId);
-  const gates = ctx.db.all("SELECT * FROM gates WHERE event_id = ? ORDER BY created_at", eventId);
+  const groups = (await ctx.db.all("SELECT * FROM guest_groups WHERE event_id = ? ORDER BY sort_order", eventId));
+  const gates = (await ctx.db.all("SELECT * FROM gates WHERE event_id = ? ORDER BY created_at", eventId));
   return { event, role, groups, gates };
 }
 
-export function updateEvent(ctx: Ctx, eventId: string, input: Partial<EventInput>) {
-  const { event, role } = requireEventAccess(ctx, eventId, ["owner", "manager"]);
+export async function updateEvent(ctx: Ctx, eventId: string, input: Partial<EventInput>) {
+  const { event, role } = (await requireEventAccess(ctx, eventId, ["owner", "manager"]));
   validateInput(input, true);
   if (event.status === "archived" || event.status === "cancelled")
     err("EVENT_CLOSED", "المناسبة مؤرشفة أو ملغاة");
@@ -147,7 +147,7 @@ export function updateEvent(ctx: Ctx, eventId: string, input: Partial<EventInput
   if (unitChange && event.unit_locked)
     err("UNIT_LOCKED", "لا يمكن تبديل وحدة الحصة بعد أول إصدار إلا بترحيل محكوم");
   if (input.capacity !== undefined && input.capacity < event.capacity) {
-    const reserved = reservedUnits(ctx.db, eventId);
+    const reserved = (await reservedUnits(ctx.db, eventId));
     if (input.capacity < reserved)
       err("CAPACITY_EXCEEDED", `السعة الجديدة أقل من المحجوز حاليًا (${reserved})`);
   }
@@ -165,20 +165,20 @@ export function updateEvent(ctx: Ctx, eventId: string, input: Partial<EventInput
   };
   for (const [k, v] of Object.entries(map)) if (v !== undefined) fields.push([k, v]);
   if (fields.length === 0) return event;
-  ctx.db.run(
+  (await ctx.db.run(
     `UPDATE events SET ${fields.map(([k]) => `${k} = ?`).join(", ")}, updated_at = ? WHERE id = ?`,
     ...fields.map(([, v]) => v), nowIso(), eventId
-  );
-  writeAudit(ctx.db, {
+  ));
+  (await writeAudit(ctx.db, {
     orgId: ctx.actor.orgId, eventId, actorId: ctx.actor.user.id,
     action: "event.update", objectType: "event", objectId: eventId,
     detail: Object.fromEntries(fields), ip: ctx.ip,
-  });
-  return loadEventScoped(ctx.db, ctx.actor.orgId, eventId);
+  }));
+  return (await loadEventScoped(ctx.db, ctx.actor.orgId, eventId));
 }
 
-export function transitionEvent(ctx: Ctx, eventId: string, to: EventStatus) {
-  const { event } = requireEventAccess(ctx, eventId, ["owner", "manager"]);
+export async function transitionEvent(ctx: Ctx, eventId: string, to: EventStatus) {
+  const { event } = (await requireEventAccess(ctx, eventId, ["owner", "manager"]));
   const from = event.status as EventStatus;
   if (!TRANSITIONS[from]?.includes(to))
     err("CONFLICT", `انتقال غير مسموح: ${from} → ${to}`);
@@ -188,89 +188,89 @@ export function transitionEvent(ctx: Ctx, eventId: string, to: EventStatus) {
       err("VALIDATION", "حدد تاريخ المناسبة قبل النشر");
     if (event.capacity < 1) err("VALIDATION", "السعة غير صالحة");
   }
-  ctx.db.run("UPDATE events SET status = ?, updated_at = ? WHERE id = ?", to, nowIso(), eventId);
+  (await ctx.db.run("UPDATE events SET status = ?, updated_at = ? WHERE id = ?", to, nowIso(), eventId));
   if (to === "ended") {
     // تثبيت حالات عدم الحضور للمؤكدين الذين لم يدخلوا
-    ctx.db.run(
+    (await ctx.db.run(
       `UPDATE invitations SET status = 'no_show'
        WHERE event_id = ? AND status IN ('issued','delivered','seen','confirmed')`,
       eventId
-    );
+    ));
   }
-  writeAudit(ctx.db, {
+  (await writeAudit(ctx.db, {
     orgId: ctx.actor.orgId, eventId, actorId: ctx.actor.user.id,
     action: "event.status", objectType: "event", objectId: eventId,
     detail: { from, to }, ip: ctx.ip,
-  });
-  return loadEventScoped(ctx.db, ctx.actor.orgId, eventId);
+  }));
+  return (await loadEventScoped(ctx.db, ctx.actor.orgId, eventId));
 }
 
-export function cloneEvent(ctx: Ctx, eventId: string) {
-  const { event } = requireEventAccess(ctx, eventId, ["owner", "manager"]);
-  assertPlanEventLimit(ctx.db, ctx.actor.orgId);
+export async function cloneEvent(ctx: Ctx, eventId: string) {
+  const { event } = (await requireEventAccess(ctx, eventId, ["owner", "manager"]));
+  (await assertPlanEventLimit(ctx.db, ctx.actor.orgId));
   const newEventId = newId();
-  return ctx.db.tx(() => {
-    ctx.db.run(
+  return (await ctx.db.tx(async () => {
+    (await ctx.db.run(
       `INSERT INTO events (id, organization_id, owner_id, title, type, host_name, description, starts_at, ends_at, timezone,
         venue_name, venue_address, map_url, is_virtual, virtual_url, capacity, quota_unit, cancel_returns_quota, rsvp_deadline, allow_reentry, status)
        SELECT ?, organization_id, ?, title || ' (نسخة)', type, host_name, description, NULL, NULL, timezone,
         venue_name, venue_address, map_url, is_virtual, virtual_url, capacity, quota_unit, cancel_returns_quota, NULL, allow_reentry, 'draft'
        FROM events WHERE id = ?`,
       newEventId, ctx.actor.user.id, eventId
-    );
-    ctx.db.run(
+    ));
+    (await ctx.db.run(
       "INSERT INTO event_members (id, event_id, organization_id, user_id, role) VALUES (?,?,?,?,'owner')",
       newId(), newEventId, ctx.actor.orgId, ctx.actor.user.id
-    );
-    const groups = ctx.db.all("SELECT * FROM guest_groups WHERE event_id = ?", eventId);
+    ));
+    const groups = (await ctx.db.all("SELECT * FROM guest_groups WHERE event_id = ?", eventId));
     for (const g of groups) {
-      ctx.db.run(
+      (await ctx.db.run(
         "INSERT INTO guest_groups (id, event_id, organization_id, name, kind, companion_max, is_vip, sort_order) VALUES (?,?,?,?,?,?,?,?)",
         newId(), newEventId, ctx.actor.orgId, g.name, g.kind, g.companion_max, g.is_vip, g.sort_order
-      );
+      ));
     }
-    ctx.db.run(
+    (await ctx.db.run(
       "INSERT INTO gates (id, event_id, organization_id, name) VALUES (?,?,?,'البوابة الرئيسية')",
       newId(), newEventId, ctx.actor.orgId
-    );
-    const design = ctx.db.get(
+    ));
+    const design = (await ctx.db.get(
       "SELECT * FROM invitation_designs WHERE event_id = ? AND state = 'published'", eventId
-    ) ?? ctx.db.get("SELECT * FROM invitation_designs WHERE event_id = ? ORDER BY updated_at DESC LIMIT 1", eventId);
+    )) ?? (await ctx.db.get("SELECT * FROM invitation_designs WHERE event_id = ? ORDER BY updated_at DESC LIMIT 1", eventId));
     if (design) {
-      ctx.db.run(
+      (await ctx.db.run(
         "INSERT INTO invitation_designs (id, event_id, organization_id, template_id, scenes_json, version, state, audio_asset_id) VALUES (?,?,?,?,?,1,'draft',?)",
         newId(), newEventId, ctx.actor.orgId, design.template_id, design.scenes_json, design.audio_asset_id
-      );
+      ));
     }
-    writeAudit(ctx.db, {
+    (await writeAudit(ctx.db, {
       orgId: ctx.actor.orgId, eventId: newEventId, actorId: ctx.actor.user.id,
       action: "event.clone", objectType: "event", objectId: newEventId,
       detail: { source: eventId }, ip: ctx.ip,
-    });
-    return loadEventScoped(ctx.db, ctx.actor.orgId, newEventId);
-  });
+    }));
+    return (await loadEventScoped(ctx.db, ctx.actor.orgId, newEventId));
+  }));
 }
 
 /** الوحدات المحجوزة فعليًا على مستوى المناسبة (لا تشمل المسودات/الملغاة/المنتهية) */
-export function reservedUnits(db: DB, eventId: string): number {
-  return db.get<{ n: number }>(
+export async function reservedUnits(db: DB, eventId: string): Promise<number>{
+  return (await db.get<{ n: number }>(
     `SELECT COALESCE(SUM(persons_reserved),0) n FROM invitations
      WHERE event_id = ? AND status NOT IN ('draft','cancelled','expired')`,
     eventId
-  )!.n;
+  ))!.n;
 }
 
-export function unallocatedPool(db: DB, eventId: string): number {
-  const ev = loadEventById(db, eventId);
-  const allocated = db.get<{ n: number }>(
+export async function unallocatedPool(db: DB, eventId: string): Promise<number>{
+  const ev = (await loadEventById(db, eventId));
+  const allocated = (await db.get<{ n: number }>(
     `SELECT COALESCE(SUM(quota_allocated),0) n FROM delegations WHERE event_id = ? AND status IN ('active','pending','suspended')`,
     eventId
-  )!.n;
+  ))!.n;
   return ev.capacity - allocated;
 }
 
-export function loadEventById(db: DB, eventId: string) {
-  const ev = db.get<any>("SELECT * FROM events WHERE id = ?", eventId);
+export async function loadEventById(db: DB, eventId: string) {
+  const ev = (await db.get<any>("SELECT * FROM events WHERE id = ?", eventId));
   if (!ev) err("NOT_FOUND");
   return ev;
 }

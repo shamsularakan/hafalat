@@ -28,10 +28,10 @@ async function request<T>(method: string, url: string, body?: unknown, isForm = 
 }
 
 export const api = {
-  get: <T>(url: string) => request<T>("GET", url),
-  post: <T>(url: string, body?: unknown) => request<T>("POST", url, body ?? {}),
-  patch: <T>(url: string, body: unknown) => request<T>("PATCH", url, body),
-  put: <T>(url: string, body: unknown) => request<T>("PUT", url, body),
-  del: <T>(url: string) => request<T>("DELETE", url),
-  form: <T>(url: string, form: FormData) => request<T>("POST", url, form, true),
+  get: async <T>(url: string) => (await request<T>("GET", url)),
+  post: async <T>(url: string, body?: unknown) => (await request<T>("POST", url, body ?? {})),
+  patch: async <T>(url: string, body: unknown) => (await request<T>("PATCH", url, body)),
+  put: async <T>(url: string, body: unknown) => (await request<T>("PUT", url, body)),
+  del: async <T>(url: string) => (await request<T>("DELETE", url)),
+  form: async <T>(url: string, form: FormData) => (await request<T>("POST", url, form, true)),
 };

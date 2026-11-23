@@ -10,7 +10,7 @@ export const POST = route(async (req: Request, { params }: P) => {
   rateLimit(`rsvp:${token}`, 20, 60e3);
   rateLimit(`rsvp-ip:${clientIp(req)}`, 40, 60e3);
   const body = await readJson(req, 64 * 1024);
-  return ok(submitRsvp(getDb(), token, {
+  return ok((await submitRsvp((await getDb()), token, {
     answer: body.answer, persons: body.persons, message: body.message,
-  }));
+  })));
 });

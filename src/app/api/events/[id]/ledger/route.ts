@@ -8,5 +8,5 @@ export const GET = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
   const url = new URL(req.url);
-  return ok(getLedger(ctx, id, url.searchParams.get("delegation_id") ?? undefined));
+  return ok((await getLedger(ctx, id, url.searchParams.get("delegation_id") ?? undefined)));
 });

@@ -9,15 +9,15 @@ type P = { params: Promise<{ id: string }> };
 export const PATCH = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
-  const e = getDb().get<{ event_id: string }>("SELECT event_id FROM expenses WHERE id = ?", id);
+  const e = (await (await getDb()).get<{ event_id: string }>("SELECT event_id FROM expenses WHERE id = ?", id));
   if (!e) err("NOT_FOUND");
-  return ok(saveExpense(ctx, e.event_id, await readJson(req), id));
+  return ok((await saveExpense(ctx, e.event_id, await readJson(req), id)));
 });
 
 export const DELETE = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
-  const e = getDb().get<{ event_id: string }>("SELECT event_id FROM expenses WHERE id = ?", id);
+  const e = (await (await getDb()).get<{ event_id: string }>("SELECT event_id FROM expenses WHERE id = ?", id));
   if (!e) err("NOT_FOUND");
-  return ok(deleteExpense(ctx, e.event_id, id));
+  return ok((await deleteExpense(ctx, e.event_id, id)));
 });

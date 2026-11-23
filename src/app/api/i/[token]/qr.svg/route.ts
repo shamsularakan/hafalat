@@ -11,7 +11,7 @@ type P = { params: Promise<{ token: string }> };
 /** QR صالح بعد تأكيد الحضور فقط — preview=1 متاح للموظفين المصادقين */
 export const GET = route(async (req: Request, { params }: P) => {
   const { token } = await params;
-  const inv = findInvitationByToken(getDb(), token);
+  const inv = (await findInvitationByToken((await getDb()), token));
   const preview = new URL(req.url).searchParams.get("preview") === "1";
   const confirmed = ["confirmed", "checked_in"].includes(inv.status);
   if (!confirmed) {

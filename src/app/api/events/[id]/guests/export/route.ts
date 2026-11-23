@@ -7,7 +7,7 @@ type P = { params: Promise<{ id: string }> };
 export const GET = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
-  const csv = exportGuestsCsv(ctx, id);
+  const csv = (await exportGuestsCsv(ctx, id));
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

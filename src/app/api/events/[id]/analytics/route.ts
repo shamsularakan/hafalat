@@ -7,5 +7,5 @@ type P = { params: Promise<{ id: string }> };
 export const GET = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
-  return ok(eventAnalytics(ctx, id));
+  return ok((await eventAnalytics(ctx, id)));
 });

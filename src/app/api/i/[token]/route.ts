@@ -9,5 +9,5 @@ type P = { params: Promise<{ token: string }> };
 export const GET = route(async (req: Request, { params }: P) => {
   const { token } = await params;
   rateLimit(`guest-page:${clientIp(req)}`, 60, 60e3);
-  return ok(getGuestPage(getDb(), token));
+  return ok((await getGuestPage((await getDb()), token)));
 });

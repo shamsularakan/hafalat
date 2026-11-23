@@ -8,5 +8,5 @@ export const POST = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
   const { to_delegation_id } = await readJson(req);
-  return ok(transferGuest(ctx, id, to_delegation_id ?? null));
+  return ok((await transferGuest(ctx, id, to_delegation_id ?? null)));
 });

@@ -14,9 +14,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   } catch {
     redirect("/login");
   }
-  const db = getDb();
-  const orgRow = db.get<any>("SELECT id, name, kind, plan_id FROM organizations WHERE id = ?", org.orgId);
-  const memberships = db.all<any>(
+  const db = await getDb();
+  const orgRow = await db.get<any>("SELECT id, name, kind, plan_id FROM organizations WHERE id = ?", org.orgId);
+  const memberships = await db.all<any>(
     `SELECT o.id, o.name, o.kind, m.role FROM organization_members m JOIN organizations o ON o.id = m.organization_id WHERE m.user_id = ?`,
     user.id
   );

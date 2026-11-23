@@ -33,12 +33,12 @@ export interface GuestPagePayload {
   scenes: any[] | null;
 }
 
-export function findInvitationByToken(db: DB, rawToken: string): InvitationRow {
+export async function findInvitationByToken(db: DB, rawToken: string): Promise<InvitationRow>{
   if (!rawToken || rawToken.length < 20 || rawToken.length > 100)
     err("INVALID_TOKEN", "رابط الدعوة غير صالح");
-  const inv = db.get<InvitationRow>(
+  const inv = (await db.get<InvitationRow>(
     "SELECT * FROM invitations WHERE token_hash = ?", hashToken(rawToken)
-  );
+  ));
   if (!inv) err("INVALID_TOKEN", "رابط الدعوة غير صالح");
   if (inv.status === "cancelled") err("EXPIRED", "هذه الدعوة ملغاة");
   if (inv.status === "expired" || (inv.expires_at && inv.expires_at < nowIso()))
@@ -48,14 +48,14 @@ export function findInvitationByToken(db: DB, rawToken: string): InvitationRow {
 }
 
 /** تحميل صفحة الضيف + تسجيل «شوهدت» عند أول فتح (إشارة موثوقة) */
-export function getGuestPage(db: DB, rawToken: string): GuestPagePayload {
-  const inv = findInvitationByToken(db, rawToken);
-  const event = db.get<any>("SELECT * FROM events WHERE id = ?", inv.event_id)!;
+export async function getGuestPage(db: DB, rawToken: string): Promise<GuestPagePayload>{
+  const inv = (await findInvitationByToken(db, rawToken));
+  const event = (await db.get<any>("SELECT * FROM events WHERE id = ?", inv.event_id))!;
   if (["cancelled", "archived"].includes(event.status))
     err("EVENT_CLOSED", "المناسبة لم تعد متاحة");
-  const guest = db.get<{ name: string; group_id: string | null }>("SELECT name, group_id FROM guests WHERE id = ?", inv.guest_id)!;
+  const guest = (await db.get<{ name: string; group_id: string | null }>("SELECT name, group_id FROM guests WHERE id = ?", inv.guest_id))!;
   const groupName = guest.group_id
-    ? (db.get<{ name: string }>("SELECT name FROM guest_groups WHERE id = ?", guest.group_id)?.name ?? "")
+    ? ((await db.get<{ name: string }>("SELECT name FROM guest_groups WHERE id = ?", guest.group_id))?.name ?? "")
     : "";
   const dual = formatDualDate(event.starts_at, event.timezone);
   const vars: TemplateVars = {
@@ -70,20 +70,20 @@ export function getGuestPage(db: DB, rawToken: string): GuestPagePayload {
   };
 
   if (["issued", "delivered"].includes(inv.status)) {
-    db.run("UPDATE invitations SET status = 'seen', seen_at = ? WHERE id = ?", nowIso(), inv.id);
+    (await db.run("UPDATE invitations SET status = 'seen', seen_at = ? WHERE id = ?", nowIso(), inv.id));
     inv.status = "seen";
   }
 
-  const design = db.get<any>(
+  const design = (await db.get<any>(
     "SELECT * FROM invitation_designs WHERE event_id = ? AND state = 'published'", inv.event_id
-  ) ?? db.get<any>(
+  )) ?? (await db.get<any>(
     "SELECT * FROM invitation_designs WHERE event_id = ? AND state = 'draft'", inv.event_id
-  );
+  ));
   const designSchema = design ? JSON.parse(design.scenes_json) : null;
-  const latestRsvp = db.get<any>(
+  const latestRsvp = (await db.get<any>(
     "SELECT answer, persons_confirmed, message FROM rsvps WHERE invitation_id = ? ORDER BY occurred_at DESC LIMIT 1",
     inv.id
-  );
+  ));
   const acceptsRsvp =
     ["published", "ongoing"].includes(event.status) &&
     (!event.rsvp_deadline || event.rsvp_deadline > nowIso()) &&
@@ -117,12 +117,12 @@ export function getGuestPage(db: DB, rawToken: string): GuestPagePayload {
 }
 
 /** رد الضيف: موافق/معتذر + مرافقون ضمن المسموح فقط (AC-04) */
-export function submitRsvp(
+export async function submitRsvp(
   db: DB, rawToken: string,
   input: { answer: "confirmed" | "declined"; persons?: number; message?: string }
 ) {
-  const inv = findInvitationByToken(db, rawToken);
-  const event = db.get<any>("SELECT * FROM events WHERE id = ?", inv.event_id)!;
+  const inv = (await findInvitationByToken(db, rawToken));
+  const event = (await db.get<any>("SELECT * FROM events WHERE id = ?", inv.event_id))!;
   if (!["published", "ongoing"].includes(event.status))
     err("EVENT_CLOSED", "المناسبة لا تقبل الردود حاليًا");
   if (event.rsvp_deadline && event.rsvp_deadline < nowIso())
@@ -140,12 +140,12 @@ export function submitRsvp(
   }
   const message = input.message?.slice(0, 500) ?? null;
 
-  return db.tx(() => {
-    db.run(
+  return (await db.tx(async () => {
+    (await db.run(
       "INSERT INTO rsvps (id, invitation_id, organization_id, answer, persons_confirmed, message) VALUES (?,?,?,?,?,?)",
       newId(), inv.id, inv.organization_id, input.answer, persons, message
-    );
-    db.run("UPDATE invitations SET status = ? WHERE id = ?", input.answer, inv.id);
+    ));
+    (await db.run("UPDATE invitations SET status = ? WHERE id = ?", input.answer, inv.id));
     return { ok: true, answer: input.answer, persons_confirmed: persons };
-  });
+  }));
 }

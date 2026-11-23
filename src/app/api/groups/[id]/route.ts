@@ -9,7 +9,7 @@ type P = { params: Promise<{ id: string }> };
 export const PATCH = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
-  const g = getDb().get<{ event_id: string }>("SELECT event_id FROM guest_groups WHERE id = ? AND organization_id = ?", id, ctx.actor.orgId);
+  const g = (await (await getDb()).get<{ event_id: string }>("SELECT event_id FROM guest_groups WHERE id = ? AND organization_id = ?", id, ctx.actor.orgId));
   if (!g) err("NOT_FOUND");
-  return ok(upsertGroup(ctx, g.event_id, { ...(await readJson(req)), id }));
+  return ok((await upsertGroup(ctx, g.event_id, { ...(await readJson(req)), id })));
 });

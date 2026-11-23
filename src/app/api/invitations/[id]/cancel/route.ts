@@ -8,5 +8,5 @@ export const POST = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
   const { reason } = await readJson(req);
-  return ok(cancelInvitation(ctx, id, reason));
+  return ok((await cancelInvitation(ctx, id, reason)));
 });

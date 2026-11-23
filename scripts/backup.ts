@@ -14,7 +14,7 @@ fs.mkdirSync(backupDir, { recursive: true });
 const target = path.join(backupDir, `dawat-${stamp}.db`);
 
 const db = new DatabaseSync(dbPath, { readOnly: true });
-db.exec(`VACUUM INTO '${target.replace(/'/g, "''")}'`);
+(await db.exec(`VACUUM INTO '${target.replace(/'/g, "''")}'`));
 db.close();
 
 // تحقق سريع من سلامة النسخة (AC-15)

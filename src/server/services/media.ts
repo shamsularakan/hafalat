@@ -31,7 +31,7 @@ export interface UploadInput {
   rightsNote?: string;
 }
 
-export function uploadMedia(ctx: Ctx, input: UploadInput) {
+export async function uploadMedia(ctx: Ctx, input: UploadInput) {
   const isAudio = input.kind === "audio";
   const allowed = isAudio ? AUDIO_MIMES : IMAGE_MIMES;
   // منع SVG (XSS) والصيغ غير المصرح بها
@@ -43,9 +43,9 @@ export function uploadMedia(ctx: Ctx, input: UploadInput) {
     err("VALIDATION", `حجم الملف يتجاوز ${Math.round(max / 1024 / 1024)}MB`);
   if (isAudio && !input.rightsAttested)
     err("VALIDATION", "يلزم تأكيد ملكية الملف أو ترخيصه قبل الرفع");
-  assertPlanStorage(ctx.db, ctx.actor.orgId, input.bytes.byteLength);
+  (await assertPlanStorage(ctx.db, ctx.actor.orgId, input.bytes.byteLength));
   if (input.eventId) {
-    const ev = ctx.db.get("SELECT id FROM events WHERE id = ? AND organization_id = ?", input.eventId, ctx.actor.orgId);
+    const ev = (await ctx.db.get("SELECT id FROM events WHERE id = ? AND organization_id = ?", input.eventId, ctx.actor.orgId));
     if (!ev) err("NOT_FOUND", "المناسبة غير موجودة");
   }
 
@@ -57,35 +57,35 @@ export function uploadMedia(ctx: Ctx, input: UploadInput) {
   fs.mkdirSync(path.dirname(full), { recursive: true });
   fs.writeFileSync(full, input.bytes);
 
-  ctx.db.run(
+  (await ctx.db.run(
     `INSERT INTO media_assets (id, organization_id, owner_id, event_id, kind, mime, bytes, original_name, storage_key, rights_attested, rights_note)
      VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
     id, ctx.actor.orgId, ctx.actor.user.id, input.eventId ?? null, input.kind,
     input.mime, input.bytes.byteLength, input.originalName.slice(0, 200), key,
     input.rightsAttested ? 1 : 0, input.rightsNote ?? null
-  );
-  writeAudit(ctx.db, {
+  ));
+  (await writeAudit(ctx.db, {
     orgId: ctx.actor.orgId, eventId: input.eventId, actorId: ctx.actor.user.id,
     action: "media.upload", objectType: "media_asset", objectId: id,
     detail: { kind: input.kind, bytes: input.bytes.byteLength, rights: input.rightsAttested }, ip: ctx.ip,
-  });
-  return ctx.db.get("SELECT id, kind, mime, bytes, original_name, rights_attested, created_at FROM media_assets WHERE id = ?", id);
+  }));
+  return (await ctx.db.get("SELECT id, kind, mime, bytes, original_name, rights_attested, created_at FROM media_assets WHERE id = ?", id));
 }
 
-export function listMedia(ctx: Ctx, eventId?: string) {
-  return ctx.db.all(
+export async function listMedia(ctx: Ctx, eventId?: string) {
+  return (await ctx.db.all(
     `SELECT id, kind, mime, bytes, original_name, rights_attested, status, created_at FROM media_assets
      WHERE organization_id = ? AND status = 'active' ${eventId ? "AND (event_id = ? OR event_id IS NULL)" : ""} ORDER BY created_at DESC`,
     ...(eventId ? [ctx.actor.orgId, eventId] : [ctx.actor.orgId])
-  );
+  ));
 }
 
 /** وصول موثق: ملكية المنظمة فقط */
-export function getAssetForOwner(ctx: Ctx, assetId: string) {
-  const asset = ctx.db.get<any>(
+export async function getAssetForOwner(ctx: Ctx, assetId: string) {
+  const asset = (await ctx.db.get<any>(
     "SELECT * FROM media_assets WHERE id = ? AND organization_id = ? AND status = 'active'",
     assetId, ctx.actor.orgId
-  );
+  ));
   if (!asset) err("NOT_FOUND", "الملف غير موجود");
   const full = path.join(uploadDir(), asset.storage_key);
   if (!fs.existsSync(full)) err("NOT_FOUND", "الملف غير موجود على التخزين");
@@ -93,38 +93,38 @@ export function getAssetForOwner(ctx: Ctx, assetId: string) {
 }
 
 /** وصول الضيف للصوت: مربوط بدعوة صالحة فقط — بلا كشف أي بيانات أخرى */
-export function getAudioForGuestToken(db: DB, rawToken: string) {
-  const inv = findInvitationByToken(db, rawToken);
-  const design = db.get<any>(
+export async function getAudioForGuestToken(db: DB, rawToken: string) {
+  const inv = (await findInvitationByToken(db, rawToken));
+  const design = (await db.get<any>(
     "SELECT audio_asset_id FROM invitation_designs WHERE event_id = ? AND state = 'published'", inv.event_id
-  ) ?? db.get<any>("SELECT audio_asset_id FROM invitation_designs WHERE event_id = ? AND state = 'draft'", inv.event_id);
+  )) ?? (await db.get<any>("SELECT audio_asset_id FROM invitation_designs WHERE event_id = ? AND state = 'draft'", inv.event_id));
   if (!design?.audio_asset_id) err("NOT_FOUND", "لا يوجد مقطع صوتي لهذه الدعوة");
-  const asset = db.get<any>(
+  const asset = (await db.get<any>(
     "SELECT * FROM media_assets WHERE id = ? AND status = 'active' AND kind = 'audio'", design.audio_asset_id
-  );
+  ));
   if (!asset) err("NOT_FOUND");
   const full = path.join(uploadDir(), asset.storage_key);
   if (!fs.existsSync(full)) err("NOT_FOUND");
   return { asset, full };
 }
 
-export function deleteMedia(ctx: Ctx, assetId: string) {
+export async function deleteMedia(ctx: Ctx, assetId: string) {
   requireOrgRole(ctx, ["owner", "admin", "member"]);
-  const asset = ctx.db.get<any>(
+  const asset = (await ctx.db.get<any>(
     "SELECT * FROM media_assets WHERE id = ? AND organization_id = ?", assetId, ctx.actor.orgId
-  );
+  ));
   if (!asset) err("NOT_FOUND");
   if (asset.owner_id !== ctx.actor.user.id && ctx.actor.orgRole === "member")
     err("FORBIDDEN", "يمكن للمالك أو المشرف حذف ملفات الآخرين");
-  const inUse = ctx.db.get(
+  const inUse = (await ctx.db.get(
     "SELECT id FROM invitation_designs WHERE audio_asset_id = ? AND organization_id = ?", assetId, ctx.actor.orgId
-  );
-  ctx.db.run("UPDATE media_assets SET status = 'deleted' WHERE id = ?", assetId);
+  ));
+  (await ctx.db.run("UPDATE media_assets SET status = 'deleted' WHERE id = ?", assetId));
   try { fs.unlinkSync(path.join(uploadDir(), asset.storage_key)); } catch { /* قد يكون محذوفًا */ }
-  writeAudit(ctx.db, {
+  (await writeAudit(ctx.db, {
     orgId: ctx.actor.orgId, actorId: ctx.actor.user.id,
     action: "media.delete", objectType: "media_asset", objectId: assetId,
     detail: { was_in_use: !!inUse }, ip: ctx.ip,
-  });
+  }));
   return { ok: true };
 }

@@ -8,7 +8,7 @@ type P = { params: Promise<{ token: string }> };
 /** بث الصوت للضيف الصالح فقط، مع دعم Range لتشغيل iOS/Android */
 export const GET = route(async (req: Request, { params }: P) => {
   const { token } = await params;
-  const { asset, full } = getAudioForGuestToken(getDb(), token);
+  const { asset, full } = (await getAudioForGuestToken((await getDb()), token));
   const stat = fs.statSync(full);
   const range = req.headers.get("range");
   const mime = asset.mime === "application/octet-stream" ? "audio/mpeg" : asset.mime;

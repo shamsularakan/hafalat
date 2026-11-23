@@ -16,11 +16,11 @@ export const GET = route(async (req: Request) => {
   if (q) { where.push("(a.action LIKE ? OR a.object_id LIKE ? OR u.name LIKE ?)"); args.push(`%${q}%`, `%${q}%`, `%${q}%`); }
   if (action) { where.push("a.action LIKE ?"); args.push(`%${action}%`); }
   if (org) { where.push("a.organization_id = ?"); args.push(org); }
-  return ok(getDb().all(
+  return ok((await (await getDb()).all(
     `SELECT a.*, u.name actor_name, o.name org_name FROM audit_logs a
      LEFT JOIN users u ON u.id = a.actor_id
      LEFT JOIN organizations o ON o.id = a.organization_id
      WHERE ${where.join(" AND ")} ORDER BY a.created_at DESC LIMIT ? OFFSET ?`,
     ...args, limit, offset
-  ));
+  )));
 });

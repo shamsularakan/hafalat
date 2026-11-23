@@ -7,7 +7,7 @@ type P = { params: Promise<{ id: string }> };
 
 export const GET = route(async (req: Request, { params }: P) => {
   const { id } = await params;
-  return ok(listAttachments(await buildCtx(clientIp(req)), id));
+  return ok((await listAttachments(await buildCtx(clientIp(req)), id)));
 });
 
 export const POST = route(async (req: Request, { params }: P) => {
@@ -16,8 +16,8 @@ export const POST = route(async (req: Request, { params }: P) => {
   const form = await req.formData();
   const file = form.get("file");
   if (!(file instanceof File)) err("VALIDATION", "ملف مطلوب");
-  return ok(uploadAttachment(ctx, id,
+  return ok((await uploadAttachment(ctx, id,
     { bytes: new Uint8Array(await file.arrayBuffer()), mime: file.type || "application/octet-stream", name: file.name },
     { kind: String(form.get("kind") ?? "other"), title: String(form.get("title") ?? file.name), vendorId: form.get("vendor_id") ? String(form.get("vendor_id")) : undefined }
-  ), 201);
+  )), 201);
 });

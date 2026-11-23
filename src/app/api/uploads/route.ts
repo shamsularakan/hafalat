@@ -12,7 +12,7 @@ export const POST = route(async (req: Request) => {
   const kind = String(form.get("kind") ?? "image") as "audio" | "image" | "logo";
   if (!["audio", "image", "logo"].includes(kind)) err("VALIDATION", "نوع وسائط غير صالح");
   const bytes = new Uint8Array(await file.arrayBuffer());
-  return ok(uploadMedia(ctx, {
+  return ok((await uploadMedia(ctx, {
     bytes,
     mime: file.type || "application/octet-stream",
     originalName: file.name || "file",
@@ -20,5 +20,5 @@ export const POST = route(async (req: Request) => {
     eventId: form.get("event_id") ? String(form.get("event_id")) : null,
     rightsAttested: form.get("rights_attested") === "true" || form.get("rights_attested") === "1",
     rightsNote: form.get("rights_note") ? String(form.get("rights_note")) : undefined,
-  }), 201);
+  })), 201);
 });

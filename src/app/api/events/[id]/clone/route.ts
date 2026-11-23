@@ -7,5 +7,5 @@ type P = { params: Promise<{ id: string }> };
 export const POST = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
-  return ok(cloneEvent(ctx, id), 201);
+  return ok((await cloneEvent(ctx, id)), 201);
 });

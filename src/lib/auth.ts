@@ -52,7 +52,7 @@ export interface RegisterInput {
   orgKind?: "individual" | "company";
 }
 
-export function registerUser(db: DB, input: RegisterInput) {
+export async function registerUser(db: DB, input: RegisterInput) {
   const name = input.name?.trim();
   const orgName = input.orgName?.trim();
   if (!name || name.length < 2) err("VALIDATION", "الاسم مطلوب (حرفان على الأقل)");
@@ -66,83 +66,83 @@ export function registerUser(db: DB, input: RegisterInput) {
     err("VALIDATION", "البريد الإلكتروني غير صالح");
   if (input.phone && !phone) err("VALIDATION", "رقم الهاتف بصيغة دولية غير صالح");
 
-  return db.tx(() => {
-    if (email && db.get("SELECT id FROM users WHERE email = ?", email))
+  return (await db.tx(async () => {
+    if (email && (await db.get("SELECT id FROM users WHERE email = ?", email)))
       err("DUPLICATE_ENTRY", "البريد مسجل مسبقًا");
-    if (phone && db.get("SELECT id FROM users WHERE phone = ?", phone))
+    if (phone && (await db.get("SELECT id FROM users WHERE phone = ?", phone)))
       err("DUPLICATE_ENTRY", "رقم الهاتف مسجل مسبقًا");
 
     const userId = newId();
-    db.run(
+    (await db.run(
       `INSERT INTO users (id, email, phone, name, password_hash, status) VALUES (?,?,?,?,?,'active')`,
       userId, email, phone, name, hashPassword(input.password)
-    );
+    ));
     const orgId = newId();
-    db.run(
+    (await db.run(
       `INSERT INTO organizations (id, name, kind, plan_id, owner_id, contact_email, contact_phone) VALUES (?,?,?,'free',?,?,?)`,
       orgId, orgName, input.orgKind ?? "individual", userId, email, phone
-    );
-    db.run(
+    ));
+    (await db.run(
       `INSERT INTO organization_members (organization_id, user_id, role) VALUES (?,?,'owner')`,
       orgId, userId
-    );
-    db.run(
+    ));
+    (await db.run(
       `INSERT INTO subscriptions (id, organization_id, plan_id, state, renewal_at) VALUES (?,?, 'free','active',?)`,
       newId(), orgId, new Date(Date.now() + 30 * 864e5).toISOString()
-    );
-    writeAudit(db, {
+    ));
+    (await writeAudit(db, {
       orgId, actorId: userId, action: "org.create",
       objectType: "organization", objectId: orgId,
-    });
-    const user = db.get<UserRow>("SELECT * FROM users WHERE id = ?", userId)!;
+    }));
+    const user = (await db.get<UserRow>("SELECT * FROM users WHERE id = ?", userId))!;
     return { user, orgId };
-  });
+  }));
 }
 
-export function login(db: DB, identifier: string, password: string, userAgent?: string) {
+export async function login(db: DB, identifier: string, password: string, userAgent?: string) {
   const id = identifier.trim();
   const email = normalizeEmail(id);
   const phone = normalizePhone(id);
-  const user = db.get<UserRow>(
+  const user = (await db.get<UserRow>(
     "SELECT * FROM users WHERE email = ? OR phone = ?",
     email, phone ?? ""
-  );
+  ));
   if (!user || !verifyPassword(password, user.password_hash))
     err("UNAUTHORIZED", "بيانات الدخول غير صحيحة");
   if (user.status !== "active") err("FORBIDDEN", "الحساب موقوف");
-  return createSession(db, user, userAgent);
+  return (await createSession(db, user, userAgent));
 }
 
-export function createSession(db: DB, user: UserRow, userAgent?: string) {
+export async function createSession(db: DB, user: UserRow, userAgent?: string) {
   const raw = newSessionToken();
   const days = Number(process.env.DAWAT_SESSION_DAYS ?? 14);
   const expires = new Date(Date.now() + days * 864e5).toISOString();
-  db.run(
+  (await db.run(
     "INSERT INTO sessions (id, user_id, expires_at, user_agent) VALUES (?,?,?,?)",
     hashSessionToken(raw), user.id, expires, userAgent ?? null
-  );
+  ));
   return { raw, expiresAt: expires, user };
 }
 
-export function validateSession(db: DB, rawToken: string | undefined): UserRow | null {
+export async function validateSession(db: DB, rawToken: string | undefined): Promise<UserRow | null>{
   if (!rawToken) return null;
-  const sess = db.get<{ user_id: string; expires_at: string }>(
+  const sess = (await db.get<{ user_id: string; expires_at: string }>(
     "SELECT user_id, expires_at FROM sessions WHERE id = ?",
     hashSessionToken(rawToken)
-  );
+  ));
   if (!sess) return null;
   if (sess.expires_at < nowIso()) {
-    db.run("DELETE FROM sessions WHERE id = ?", hashSessionToken(rawToken));
+    (await db.run("DELETE FROM sessions WHERE id = ?", hashSessionToken(rawToken)));
     return null;
   }
-  const user = db.get<UserRow>("SELECT * FROM users WHERE id = ?", sess.user_id);
+  const user = (await db.get<UserRow>("SELECT * FROM users WHERE id = ?", sess.user_id));
   if (!user || user.status !== "active") return null;
   return user;
 }
 
-export function destroySession(db: DB, rawToken: string | undefined) {
+export async function destroySession(db: DB, rawToken: string | undefined) {
   if (!rawToken) return;
-  db.run("DELETE FROM sessions WHERE id = ?", hashSessionToken(rawToken));
+  (await db.run("DELETE FROM sessions WHERE id = ?", hashSessionToken(rawToken)));
 }
 
 /** تحديد معدل بسيط في الذاكرة (الإنتاج: Redis/مزود مشترك) */

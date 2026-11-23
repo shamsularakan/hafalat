@@ -9,16 +9,16 @@ type P = { params: Promise<{ id: string }> };
 export const PATCH = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
-  const v = getDb().get<{ event_id: string }>("SELECT event_id FROM vendors WHERE id = ?", id);
+  const v = (await (await getDb()).get<{ event_id: string }>("SELECT event_id FROM vendors WHERE id = ?", id));
   if (!v) err("NOT_FOUND");
   const b = await readJson(req);
-  return ok(saveVendor(ctx, v.event_id, b, id));
+  return ok((await saveVendor(ctx, v.event_id, b, id)));
 });
 
 export const DELETE = route(async (req: Request, { params }: P) => {
   const { id } = await params;
   const ctx = await buildCtx(clientIp(req));
-  const v = getDb().get<{ event_id: string }>("SELECT event_id FROM vendors WHERE id = ?", id);
+  const v = (await (await getDb()).get<{ event_id: string }>("SELECT event_id FROM vendors WHERE id = ?", id));
   if (!v) err("NOT_FOUND");
-  return ok(deleteVendor(ctx, v.event_id, id));
+  return ok((await deleteVendor(ctx, v.event_id, id)));
 });

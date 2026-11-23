@@ -17,9 +17,9 @@ export const GET = route(async (req: Request) => {
     where.push("EXISTS (SELECT 1 FROM template_favorites f WHERE f.template_id = t.id AND f.user_id = ?)");
     args.push(ctx.actor.user.id);
   }
-  return ok(getDb().all(
+  return ok((await (await getDb()).all(
     `SELECT t.*, EXISTS(SELECT 1 FROM template_favorites f WHERE f.template_id=t.id AND f.user_id=?) favorite
      FROM templates t WHERE ${where.join(" AND ")} ORDER BY t.is_favorite DESC, t.category, t.name_ar`,
     ctx.actor.user.id, ...args
-  ));
+  )));
 });
