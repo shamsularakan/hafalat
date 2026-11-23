@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   CalendarHeart, LayoutDashboard, CalendarDays, CreditCard, Settings, LogOut, ChevronDown, ShieldCheck,
-  Home, QrCode, BarChart3, LayoutGrid, Palette, Store,
+  Home, QrCode, BarChart3, LayoutGrid, Palette, Store, Mail, HandHeart,
 } from "lucide-react";
 import { api } from "@/lib/client";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,8 @@ const NAV = [
   { href: "/app", label: "لوحة التحكم", icon: LayoutDashboard, exact: true },
   { href: "/app/events", label: "المناسبات", icon: CalendarDays },
   { href: "/app/templates", label: "معرض القوالب", icon: Palette },
+  { href: "/app/invitations", label: "دعواتي", icon: Mail },
+  { href: "/app/helping", label: "فزعاتي", icon: HandHeart },
   { href: "/app/attendance", label: "الحضور", icon: QrCode },
   { href: "/app/statistics", label: "الإحصائيات", icon: BarChart3 },
   { href: "/app/billing", label: "الفوترة والباقات", icon: CreditCard, short: "الفوترة" },

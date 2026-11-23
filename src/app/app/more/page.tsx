@@ -1,10 +1,12 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { Settings, CreditCard, ShieldCheck, FileText, Users, Heart, ArrowLeft, Store } from "lucide-react";
+import { Settings, CreditCard, ShieldCheck, FileText, Users, Heart, ArrowLeft, Store, Mail, HandHeart } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 const ITEMS = [
+  { href: "/app/invitations", label: "دعواتي", desc: "الدعوات التي وصلتك على رقم جوالك", icon: Mail },
+  { href: "/app/helping", label: "فزعاتي", desc: "المناسبات التي طُلبت فيها فزعتك وبطاقات الشكر", icon: HandHeart },
   { href: "/app/settings", label: "الإعدادات والسجلات", desc: "مساحة العمل، الأعضاء، قوالب الرسائل، والتدقيق", icon: Settings },
   { href: "/app/billing", label: "الفوترة والباقات", desc: "الاشتراك الحالي، الفواتير، والترقية", icon: CreditCard },
   { href: "/app/admin", label: "لوحة مدير المنصة", desc: "الإشراف العام والباقات والقوالب (للمدير فقط)", icon: ShieldCheck },

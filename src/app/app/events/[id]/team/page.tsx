@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input, Field, Select } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { Loading, ErrorState, useToast } from "@/components/ui/feedback";
+import { HelpersPanel } from "@/components/helpers-panel";
 
 const ROLE: Record<string, string> = { planner: "مدير التخطيط", finance: "المسؤول المالي", services: "منسق الخدمات" };
 
@@ -27,6 +28,7 @@ export default function TeamPage() {
   return (
     <div className="space-y-5 animate-fade-up">
       {node}
+      <HelpersPanel />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm"><Users className="h-4 w-4" /> فريق التخطيط</CardTitle>

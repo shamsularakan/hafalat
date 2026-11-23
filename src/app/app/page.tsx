@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { CalendarDays, Plus, Users, QrCode, ArrowLeft, Sparkles } from "lucide-react";
+import { CalendarDays, Plus, Users, QrCode, ArrowLeft, Sparkles, Mail, HandHeart } from "lucide-react";
 import { api } from "@/lib/client";
 import { formatDateShort, statusTone } from "@/lib/utils";
 import { EVENT_STATUS_AR, INVITATION_STATUS_AR } from "@/lib/types";
@@ -13,9 +13,12 @@ import { Loading, ErrorState, EmptyState } from "@/components/ui/feedback";
 export default function DashboardPage() {
   const [events, setEvents] = React.useState<any[] | null>(null);
   const [error, setError] = React.useState("");
+  const [mine, setMine] = React.useState<{ inv: any; help: any } | null>(null);
 
   const load = React.useCallback(() => {
     api.get<any[]>("/api/events").then(setEvents).catch((e) => setError(e.message));
+    Promise.all([api.get<any>("/api/me/invitations"), api.get<any>("/api/me/helping")])
+      .then(([inv, help]) => setMine({ inv, help })).catch(() => {});
   }, []);
   React.useEffect(load, [load]);
 
@@ -36,6 +39,19 @@ export default function DashboardPage() {
         </div>
         <Link href="/app/events?new=1"><Button><Plus className="h-4.5 w-4.5" /> مناسبة جديدة</Button></Link>
       </div>
+
+      {mine && (mine.inv.invitations.length + mine.inv.pending_count + mine.help.helping.length + mine.help.pending_count) > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Link href="/app/invitations"><Card className="flex items-center gap-3 transition-transform hover:-translate-y-0.5">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-lime-100"><Mail className="h-5 w-5" /></span>
+            <div><p className="font-bold">دعواتي</p><p className="text-xs text-muted">{mine.inv.verified ? `${mine.inv.invitations.filter((i: any) => i.upcoming).length} دعوة قادمة` : `${mine.inv.pending_count} على رقمك — أكّد رقمك لعرضها`}</p></div>
+          </Card></Link>
+          <Link href="/app/helping"><Card className="flex items-center gap-3 transition-transform hover:-translate-y-0.5">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-lime-100"><HandHeart className="h-5 w-5" /></span>
+            <div><p className="font-bold">فزعاتي</p><p className="text-xs text-muted">{mine.help.verified ? `${mine.help.helping.length} فزعة` : `${mine.help.pending_count} على رقمك — أكّد رقمك لعرضها`}</p></div>
+          </Card></Link>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="مناسبات نشطة" value={active.length} tone="navy" />

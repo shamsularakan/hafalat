@@ -267,6 +267,12 @@ export async function eventAlerts(ctx: Ctx, eventId: string, now = Date.now()): 
     level: "info", key: "day_no_owner", seg: "timeline", title: `${dayNoOwner} خطوة في جدول اليوم بلا مسؤول`, detail: "كل خطوة بلا مسؤول لن تُنجز",
   });
 
+  // الفزعة: طلبات لم تُرسل قبل المناسبة، وبطاقات شكر لم تُرسل بعدها
+  const helpersUnsent = await n("SELECT COUNT(*) n FROM event_helpers WHERE event_id = ? AND request_sent_at IS NULL AND status = 'invited'", eventId);
+  if (helpersUnsent > 0 && daysLeft > 0) alerts.push({ level: "info", key: "helpers_unsent", seg: "team", title: `${helpersUnsent} فزعة لم يُرسل لها الطلب`, detail: "أرسل طلب الفزعة عبر واتساب من «فريق التنظيم»" });
+  const thanksUnsent = await n("SELECT COUNT(*) n FROM event_helpers WHERE event_id = ? AND thanked_at IS NOT NULL AND thanks_sent_at IS NULL", eventId);
+  if (thanksUnsent > 0) alerts.push({ level: "warning", key: "thanks_unsent", seg: "team", title: `${thanksUnsent} بطاقة شكر لم تُرسل`, detail: "أرسل بطاقات الشكر لأصحاب الفزعة" });
+
   if (["ended", "archived"].includes(event.status) || daysLeft < -1) {
     const unrated = await n("SELECT COUNT(*) n FROM vendors WHERE event_id = ? AND status IN ('contracted','done') AND rating IS NULL", eventId);
     if (unrated > 0) alerts.push({ level: "info", key: "vendors_unrated", seg: "closing", title: `قيّم ${unrated} مورد`, detail: "التقييم يفيدك في مناسباتك القادمة" });

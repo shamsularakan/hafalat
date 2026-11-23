@@ -9,6 +9,7 @@ import { writeAudit } from "@/lib/audit";
 import { assertPlanEventLimit } from "@/lib/plans";
 import { applyTemplate } from "./planning";
 import { shiftPlanForNewDate } from "./operations";
+import { issueThanks } from "./helpers";
 
 const TRANSITIONS: Record<EventStatus, EventStatus[]> = {
   draft: ["ready", "cancelled"],
@@ -201,6 +202,8 @@ export async function transitionEvent(ctx: Ctx, eventId: string, to: EventStatus
        WHERE event_id = ? AND status IN ('issued','delivered','seen','confirmed')`,
       eventId
     ));
+    // بطاقة شكر لكل فزعة لم تعتذر — تظهر في صفحته وحسابه، وتُرسل عبر واتساب بضغطة
+    (await issueThanks(ctx.db, eventId));
   }
   (await writeAudit(ctx.db, {
     orgId: ctx.actor.orgId, eventId, actorId: ctx.actor.user.id,

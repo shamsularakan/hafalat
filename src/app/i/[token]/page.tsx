@@ -7,6 +7,9 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { findInvitationByToken } from "@/server/services/rsvp";
+import { getSessionUser } from "@/server/context";
+import { verifyByInvitationToken } from "@/server/services/helpers";
+import { hashToken } from "@/lib/tokens";
 
 /** زواحف معاينة الروابط (واتساب وغيرها) تفتح الرابط تلقائيًا — لا نحسبها «مشاهدة» من الضيف */
 const PREVIEW_BOTS = /WhatsApp|facebookexternalhit|Facebot|TelegramBot|Twitterbot|Slackbot|LinkedInBot|Discordbot|SkypeUriPreview|Googlebot/i;
@@ -45,6 +48,9 @@ export default async function GuestPage({ params }: { params: Promise<{ token: s
   }
   try {
     const payload = (await getGuestPage((await getDb()), token));
+    // صاحب الحساب فتح دعوته المرسلة لرقمه ← الرقم موثّق، فتظهر كل دعواته وفزعاته في حسابه
+    const viewer = await getSessionUser().catch(() => null);
+    if (viewer) await verifyByInvitationToken(await getDb(), viewer, hashToken(token)).catch(() => false);
     return <GuestClient payload={payload} token={token} />;
   } catch (e) {
     const message =
