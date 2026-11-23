@@ -8,7 +8,11 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { Pool, type PoolClient } from "pg";
+import { neonConfig, Pool, type PoolClient } from "@neondatabase/serverless";
+import WebSocket from "ws";
+
+// ويب سوكيت على المنفذ 443 — يعمل خلف جدران الحماية ويدعم المعاملات
+neonConfig.webSocketConstructor = WebSocket as any;
 import { seedPlans, seedTemplates } from "./seeds";
 import { seedPlanningTemplates } from "./planning-seeds";
 
@@ -51,7 +55,10 @@ export class DB {
   /** تكييف الاستعلام لـ Postgres: rowid ← ctid، و? ← $n مع تجاهل ما داخل النصوص. */
   private q(sql: string, params?: SQLValue[]) {
     if (this.mode !== "neon") return sql;
-    let out = sql.replace(/\browid\b/gi, "ctid");
+    let out = sql
+      .replace(/\browid\b/gi, "ctid")
+      // Postgres لا يستطيع استنتاج نوع المتغير في «? IS NOT NULL»
+      .replace(/(\?)\s+(IS\s+(?:NOT\s+)?NULL)/gi, "$1::text $2");
     if (params && params.length) {
       let n = 0, res = "", inSingle = false, inDouble = false;
       for (let i = 0; i < out.length; i++) {
@@ -191,14 +198,8 @@ export function adaptSql(sql: string): string {
 }
 
 export async function createDb(filePath: string): Promise<DB> {
-  // الترحيلات على اتصال مباشر (غير مجمّع) عند توفره — توصية Neon
-  const migrateTarget = process.env.DATABASE_URL_UNPOOLED && filePath.startsWith("postgres")
-    ? process.env.DATABASE_URL_UNPOOLED
-    : filePath;
-  const migrateDb = migrateTarget === filePath ? null : new DB(migrateTarget);
   const db = new DB(filePath);
-  await migrate(migrateDb ?? db);
-  migrateDb?.close();
+  await migrate(db);
   await seedPlans(db);
   await seedTemplates(db);
   await seedPlanningTemplates(db);
