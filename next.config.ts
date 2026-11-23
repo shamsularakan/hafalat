@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // ws يُحمَّل في وقت التشغيل لتجنب تعارض الحزمة الأصلية مع حزم Next
+  serverExternalPackages: ["ws"],
   // صفحات الضيوف خاصة: منع أي كاش عام
   async headers() {
     return [

@@ -20,6 +20,12 @@ const SAMPLE_VARS: TemplateVars = {
   "guest.name": "أحمد محمد", "event.name": "حفل زفاف", "event.date": "٢٠ نوفمبر ٢٠٢٦",
   "event.time": "٨:٠٠ مساءً", "event.venue": "قاعة الاحتفالات",
   "guest.allowed_companions": 2, "invitation.category": "VIP", "host.names": "عبدالله ونورة",
+  "event.program": "19:00|الاستقبال\n20:00|حفل الزفاف\n21:30|العشاء",
+  "event.dress_code": "رسمي — بدلة / فستان سهرة", "event.transport": "مواصلات من القاعة الساعة ١٠ مساءً",
+  "event.accommodation": "فندق ...) للضيوف", "event.quote": "الحب ما يعرف حدود",
+  "event.photo": "", "event.rsvp_deadline": "١٥ نوفمبر", "event.rsvp_phone": "05xxxxxxxx",
+  "event.monogram": "ع | ن", "event.groom": "عبدالله", "event.bride": "نورة",
+  "event.invitation_line": "يتشرفان بدعوتكم لحضور حفل زفافهما",
 };
 
 const MOTIONS: { id: EngineSchema["motion"]; ar: string }[] = [
@@ -242,6 +248,7 @@ export default function DesignPage() {
 
           <Tabs active={tab} onChange={setTab} tabs={[
             { id: "texts", label: "النصوص" },
+            { id: "invite-data", label: "بيانات الدعوة" },
             { id: "scenes", label: "المشاهد والطبقات" },
             { id: "colors", label: "الألوان والحركة" },
             { id: "media", label: "الصوت والوسائط" },
@@ -265,6 +272,31 @@ export default function DesignPage() {
                 <Field label="ملاحظة RSVP"><Input value={schema.details.rsvp_note} onChange={(e) => patch({ details: { ...schema.details, rsvp_note: e.target.value } })} /></Field>
               </div>
               <Field label="رمز الزخرفة"><Input value={schema.cover.ornament} onChange={(e) => patch({ cover: { ...schema.cover, ornament: e.target.value } })} className="w-24 text-center" /></Field>
+            </Card>
+          )}
+
+          {tab === "invite-data" && (
+            <Card className="space-y-4 animate-fade-in">
+              <p className="text-xs text-muted">هذه البيانات تظهر في قالب الدعوة البصري (الغلاف، البرنامج، التأكيد). اترك أي حقل فارغًا ليُخفى تلقائيًا.</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="اسم العريس"><Input value={schema.details.groom ?? ""} onChange={(e) => patch({ details: { ...schema.details, groom: e.target.value } })} placeholder="عبدالله" /></Field>
+                <Field label="اسم العروس"><Input value={schema.details.bride ?? ""} onChange={(e) => patch({ details: { ...schema.details, bride: e.target.value } })} placeholder="نورة" /></Field>
+                <Field label="الأحرف الأولى (مونوغرام)"><Input value={schema.details.monogram ?? ""} onChange={(e) => patch({ details: { ...schema.details, monogram: e.target.value } })} placeholder="ع | ن" /></Field>
+                <Field label="سطر الدعوة"><Input value={schema.details.invitation_line ?? ""} onChange={(e) => patch({ details: { ...schema.details, invitation_line: e.target.value } })} /></Field>
+              </div>
+              <Field label="صورة العريس (اختيارية)">
+                <Input value={schema.details.photo_url ?? ""} onChange={(e) => patch({ details: { ...schema.details, photo_url: e.target.value } })} placeholder="/api/i/.../asset/... أو رابط https" dir="ltr" />
+              </Field>
+              <Field label="برنامج الحفل (كل سطر: الوقت|العنوان)">
+                <Textarea rows={5} value={schema.details.program ?? ""} onChange={(e) => patch({ details: { ...schema.details, program: e.target.value } })} placeholder={"19:00|الاستقبال\n20:00|حفل الزفاف"} dir="ltr" />
+              </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="الزي المطلوب"><Input value={schema.details.dress_code ?? ""} onChange={(e) => patch({ details: { ...schema.details, dress_code: e.target.value } })} /></Field>
+                <Field label="المواصلات"><Input value={schema.details.transport ?? ""} onChange={(e) => patch({ details: { ...schema.details, transport: e.target.value } })} /></Field>
+                <Field label="الإقامة"><Input value={schema.details.accommodation ?? ""} onChange={(e) => patch({ details: { ...schema.details, accommodation: e.target.value } })} /></Field>
+                <Field label="رسالة/اقتباس"><Input value={schema.details.quote ?? ""} onChange={(e) => patch({ details: { ...schema.details, quote: e.target.value } })} /></Field>
+                <Field label="رقم تأكيد الحضور"><Input value={schema.details.rsvp_phone ?? ""} onChange={(e) => patch({ details: { ...schema.details, rsvp_phone: e.target.value } })} dir="ltr" /></Field>
+              </div>
             </Card>
           )}
 

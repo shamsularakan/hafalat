@@ -18,11 +18,17 @@ export interface DesignSchema {
   palette: { bg: string; card: string; primary: string; accent: string; text: string; muted: string };
   motion: "envelope" | "fade" | "slide" | "scale" | "reveal" | "flip";
   cover: { title: string; subtitle: string; hosts: string; ornament: string };
-  details: { message: string; venue_label: string; date_label: string; rsvp_note: string };
+  details: {
+    message: string; venue_label: string; date_label: string; rsvp_note: string;
+    program?: string; dress_code?: string; transport?: string; accommodation?: string;
+    quote?: string; photo_url?: string; rsvp_phone?: string; monogram?: string;
+    groom?: string; bride?: string; invitation_line?: string;
+  };
   logo_asset_id?: string | null;
   background_asset_id?: string | null;
   show_countdown: boolean;
   show_qr: boolean;
+  scenes?: any[];
 }
 
 export async function listTemplates(ctx: Ctx) {

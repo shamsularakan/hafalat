@@ -4,7 +4,7 @@
  */
 import { DB, newId, nowIso } from "@/lib/db";
 import { err } from "@/lib/errors";
-import type { TemplateVars } from "@/lib/invitation-engine";
+import { safeImageUrl, type TemplateVars } from "@/lib/invitation-engine";
 import { hashToken } from "@/lib/tokens";
 import { formatDualDate } from "@/lib/dates";
 import type { InvitationRow } from "./invitations";
@@ -58,6 +58,28 @@ export async function getGuestPage(db: DB, rawToken: string): Promise<GuestPageP
     ? ((await db.get<{ name: string }>("SELECT name FROM guest_groups WHERE id = ?", guest.group_id))?.name ?? "")
     : "";
   const dual = formatDualDate(event.starts_at, event.timezone);
+  const design = (await db.get<any>(
+    "SELECT * FROM invitation_designs WHERE event_id = ? AND state = 'published'", inv.event_id
+  )) ?? (await db.get<any>(
+    "SELECT * FROM invitation_designs WHERE event_id = ? AND state = 'draft'", inv.event_id
+  ));
+  const designSchema = design ? JSON.parse(design.scenes_json) : null;
+  const d = designSchema?.details ?? {};
+  const publishedSteps = (await db.all<{ starts_at: string | null; title: string; sort_order: number }>(
+    "SELECT starts_at, title, sort_order FROM timeline_items WHERE event_id = ? AND phase = 'event_day' ORDER BY sort_order, starts_at", inv.event_id
+  ));
+  const program = publishedSteps
+    .map((x) => {
+      const t = x.starts_at
+        ? new Date(x.starts_at).toLocaleTimeString("ar-SA-u-nu-latn", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: event.timezone || "Asia/Riyadh" })
+        : "";
+      return `${t}|${x.title}`;
+    }).join("\n");
+  const photoRaw = String(d.photo_url ?? "").trim();
+  const photo = safeImageUrl(photoRaw)
+    ? photoRaw
+    : photoRaw ? `/api/i/${rawToken}/asset/${photoRaw}` : "";
+
   const vars: TemplateVars = {
     "guest.name": guest.name,
     "event.name": event.title,
@@ -67,6 +89,20 @@ export async function getGuestPage(db: DB, rawToken: string): Promise<GuestPageP
     "guest.allowed_companions": inv.companions_allowed,
     "invitation.category": groupName,
     "host.names": event.host_name ?? "",
+    "event.program": program,
+    "event.dress_code": d.dress_code ?? "",
+    "event.transport": d.transport ?? "",
+    "event.accommodation": d.accommodation ?? "",
+    "event.quote": d.quote ?? "",
+    "event.photo": photo,
+    "event.rsvp_deadline": event.rsvp_deadline
+      ? new Date(event.rsvp_deadline).toLocaleDateString("ar-SA-u-nu-latn", { day: "numeric", month: "long", year: "numeric", timeZone: event.timezone || "Asia/Riyadh" })
+      : "",
+    "event.rsvp_phone": d.rsvp_phone ?? "",
+    "event.monogram": d.monogram ?? "",
+    "event.groom": d.groom ?? "",
+    "event.bride": d.bride ?? "",
+    "event.invitation_line": d.invitation_line ?? "",
   };
 
   if (["issued", "delivered"].includes(inv.status)) {
@@ -74,12 +110,6 @@ export async function getGuestPage(db: DB, rawToken: string): Promise<GuestPageP
     inv.status = "seen";
   }
 
-  const design = (await db.get<any>(
-    "SELECT * FROM invitation_designs WHERE event_id = ? AND state = 'published'", inv.event_id
-  )) ?? (await db.get<any>(
-    "SELECT * FROM invitation_designs WHERE event_id = ? AND state = 'draft'", inv.event_id
-  ));
-  const designSchema = design ? JSON.parse(design.scenes_json) : null;
   const latestRsvp = (await db.get<any>(
     "SELECT answer, persons_confirmed, message FROM rsvps WHERE invitation_id = ? ORDER BY occurred_at DESC LIMIT 1",
     inv.id

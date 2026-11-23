@@ -4,7 +4,8 @@ import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { MapPin, CalendarPlus, Music4, Volume2, VolumeX, Play, Pause, Clock } from "lucide-react";
 import { formatDualDate } from "@/lib/dates";
 import { cn } from "@/lib/utils";
-import { substitute, layerText, type EngineSchema, type Layer, type Scene, type TemplateVars } from "@/lib/invitation-engine";
+import { substitute, layerText, safeImageUrl, type EngineSchema, type Layer, type Scene, type TemplateVars } from "@/lib/invitation-engine";
+import { EditorialInvitation } from "./editorial-invitation";
 
 export interface CardEvent {
   title: string; type: string; host_name: string | null; description?: string | null;
@@ -47,7 +48,7 @@ function useVariants(preset: string | undefined, reduced: boolean | null) {
 }
 
 export function InvitationCard({
-  schema, event, guestName, opened, onOpen, children, compact, logoUrl, backgroundUrl, vars, scene,
+  schema, event, guestName, opened, onOpen, children, compact, logoUrl, backgroundUrl, vars, scene, step,
 }: {
   schema: EngineSchema;
   event: CardEvent;
@@ -60,8 +61,17 @@ export function InvitationCard({
   backgroundUrl?: string | null;
   vars?: TemplateVars;
   scene?: Scene | null;
+  step?: number;
 }) {
   const reduced = useReducedMotion();
+  if (schema.template_style === "editorial") {
+    return (
+      <EditorialInvitation
+        schema={schema} event={event} vars={vars ?? {}} opened={opened} onOpen={onOpen}
+        children={children} compact={compact} guestName={guestName} step={step ?? 0}
+      />
+    );
+  }
   const v = useVariants(scene?.motion ?? schema.motion, reduced);
   const p = schema.palette;
   const dual = formatDualDate(event.starts_at, event.timezone);
@@ -215,7 +225,28 @@ function LayerStack({
           return <div key={l.id} className="text-3xl" style={{ color: st.color ?? palette.accent, opacity: st.opacity ?? 1 }} aria-hidden>{text}</div>;
         }
         if (l.type === "image") {
-          return <img key={l.id} src={text} alt="" className="mx-auto max-h-48 rounded-xl object-cover" style={{ opacity: st.opacity ?? 1 }} />;
+          const src = safeImageUrl(text);
+          return src ? <img key={l.id} src={src} alt="" className="mx-auto max-h-48 rounded-xl object-cover" style={{ opacity: st.opacity ?? 1 }} /> : null;
+        }
+        if (l.type === "monogram") {
+          return <p key={l.id} className="font-display text-3xl tracking-[.2em]" style={{ color: st.color ?? palette.accent }}>{text}</p>;
+        }
+        if (l.type === "program") {
+          const items = text.split("\n").map((x) => x.trim()).filter(Boolean);
+          if (!items.length) return null;
+          return (
+            <div key={l.id} className="space-y-2 text-right">
+              {items.map((line, i) => {
+                const [time, ...rest] = line.split("|");
+                return (
+                  <div key={i} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2" style={{ background: palette.card + "33" }}>
+                    <span className="text-xs font-bold" style={{ color: palette.text }}>{rest.join("|")}</span>
+                    <span className="text-[11px]" dir="ltr" style={{ color: palette.accent }}>{time}</span>
+                  </div>
+                );
+              })}
+            </div>
+          );
         }
         if (l.type === "qr" || l.type === "button" || l.type === "audio") return null; // تُرسم عناصر التفاعل في GuestClient
         return (

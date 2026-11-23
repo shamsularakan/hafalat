@@ -3,7 +3,7 @@
  * مخطط المشاهد/الطبقات يُستخدم في معاينة المصمم وفي صفحة المدعو (نفس المحرك).
  * المتغيرات تُحقن من الخادم وتُعامل كنص آمن (لا HTML ولا JavaScript).
  */
-export type LayerType = "text" | "ornament" | "image" | "qr" | "button" | "audio";
+export type LayerType = "text" | "ornament" | "image" | "qr" | "button" | "audio" | "program" | "monogram";
 export type SceneKind = "cover" | "welcome" | "details" | "rsvp" | "ticket";
 
 export interface Layer {
@@ -36,7 +36,13 @@ export interface EngineSchema {
   palette: { bg: string; card: string; primary: string; accent: string; text: string; muted: string };
   motion?: string;
   cover: { title: string; subtitle: string; hosts: string; ornament: string };
-  details: { message: string; venue_label: string; date_label: string; rsvp_note: string };
+  details: {
+    message: string; venue_label: string; date_label: string; rsvp_note: string;
+    /** حقول إضافية لقالب الدعوة البصري — كلها اختيارية */
+    program?: string; dress_code?: string; transport?: string; accommodation?: string;
+    quote?: string; photo_url?: string; rsvp_phone?: string; monogram?: string;
+    groom?: string; bride?: string; invitation_line?: string;
+  };
   logo_asset_id?: string | null;
   background_asset_id?: string | null;
   show_countdown?: boolean;
@@ -50,6 +56,9 @@ export type TemplateVars = Record<string, string | number>;
 export const ALLOWED_VARS = [
   "guest.name", "event.name", "event.date", "event.time", "event.venue",
   "guest.allowed_companions", "invitation.category", "host.names",
+  "event.program", "event.dress_code", "event.transport", "event.accommodation",
+  "event.quote", "event.photo", "event.rsvp_deadline", "event.rsvp_phone",
+  "event.monogram", "event.groom", "event.bride", "event.invitation_line",
 ] as const;
 
 function clean(v: string | number): string {
@@ -72,6 +81,16 @@ export function substitute(input: string, vars: TemplateVars): string {
     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
     .replace(/<[^>]*>/g, "")
     .replace(/javascript:/gi, "");
+}
+
+/** رابط صورة آمن: مساراتنا المحلية أو https أو data:image base64 فقط */
+export function safeImageUrl(input: string): string | null {
+  const v = String(input ?? "").trim();
+  if (!v) return null;
+  if (/^\/api\//.test(v)) return v;
+  if (/^https?:\/\//i.test(v)) return v;
+  if (/^data:image\/(?:png|jpe?g|webp|gif);base64,/i.test(v)) return v;
+  return null;
 }
 
 export function layerText(layer: Layer, vars: TemplateVars): string {

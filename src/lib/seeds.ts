@@ -77,6 +77,31 @@ export const BUILTIN_TEMPLATES: { id: string; name_ar: string; style: string; ca
       show_countdown: true, show_qr: true,
     },
   },
+  {
+    // قالب بصري كامل بهوية ليلتنا: كريمي/زيتوني/ذهبي + صورة عريس اختيارية
+    id: "tpl-laylatna-editorial", name_ar: "ليلتنا — دعوة بصرية", style: "editorial", category: "wedding",
+    schema: {
+      template_style: "editorial",
+      palette: { bg: "#FBF8F5", card: "#F4EFE4", primary: "#4F6B5F", accent: "#B3975F", text: "#4A3B36", muted: "#8A7A70" },
+      motion: "fade",
+      cover: { title: "ليلتنا", subtitle: "بسم الله الرحمن الرحيم", hosts: "", ornament: "✦" },
+      details: {
+        message: "يسعدنا دعوتكم لمشاركتنا فرحتنا، حضوركم يكمل بهجتنا.",
+        venue_label: "المكان", date_label: "الموعد", rsvp_note: "نرجو تأكيد الحضور لتجهيز الاستقبال",
+        program: "", dress_code: "رسمي", transport: "", accommodation: "", quote: "",
+        photo_url: "", rsvp_phone: "", monogram: "ل | ن", groom: "", bride: "",
+        invitation_line: "يتشرفان بدعوتكم لحضور حفل زفافهما",
+      },
+      show_countdown: false, show_qr: true,
+      scenes: [
+        { id: "ed-cover", kind: "cover", title: "الغلاف", motion: "fade", layers: [{ id: "ed-c1", type: "text", content: "ليلتنا" }] },
+        { id: "ed-welcome", kind: "welcome", title: "الترحيب", motion: "fade", layers: [{ id: "ed-w1", type: "text", variable: "guest.name" }] },
+        { id: "ed-details", kind: "details", title: "البرنامج", motion: "fade", layers: [{ id: "ed-d1", type: "program", variable: "event.program" }] },
+        { id: "ed-rsvp", kind: "rsvp", title: "تأكيد الحضور", motion: "fade", layers: [{ id: "ed-r1", type: "text", content: "نسعد بحضوركم" }] },
+        { id: "ed-ticket", kind: "ticket", title: "التذكرة", motion: "fade", layers: [{ id: "ed-t1", type: "qr", content: "رمز الدخول" }] },
+      ],
+    },
+  },
 ];
 
 // قوالب إضافية لتغطية كل أنواع المناسبات في معرض المعاينة

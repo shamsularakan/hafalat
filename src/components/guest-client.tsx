@@ -77,6 +77,7 @@ export function GuestClient({ payload: initial, token }: { payload: GuestPagePay
           backgroundUrl={payload.background_url}
           vars={payload.vars}
           scene={scene}
+          step={step}
         >
           {step > 0 && (
             <div className="space-y-5">
