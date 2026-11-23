@@ -31,7 +31,9 @@ function LoginForm() {
     setLoading(true);
     try {
       await api.post("/api/auth/login", { identifier, password });
-      router.push(params.get("next") ?? "/app");
+      const next = params.get("next") ?? "";
+      // مسار داخلي فقط (يبدأ بـ / وليس // أو /\) لمنع التحويل لموقع خارجي
+      router.push(/^\/(?![\/\\])/.test(next) ? next : "/app");
       router.refresh();
     } catch (err: any) {
       setError(err.message);

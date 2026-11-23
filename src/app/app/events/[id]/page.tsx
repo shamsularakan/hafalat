@@ -9,6 +9,7 @@ import { formatDateShort, formatNumber, statusTone, toLocalDatetimeInput } from 
 import { EVENT_STATUS_AR } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, Stat } from "@/components/ui/card";
+import { AlertsCard } from "@/components/planning-widgets";
 import { Badge } from "@/components/ui/badge";
 import { Input, Field, Switch } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
@@ -66,7 +67,7 @@ export default function EventOverviewPage() {
         <Card className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-bold">دورة حياة المناسبة</p>
-            <p className="mt-0.5 text-xs text-muted">مسودة → جاهزة → منشورة → جارية → منتهية → مؤرشفة</p>
+            <p className="mt-0.5 text-xs text-muted">مسودة ← جاهزة ← منشورة ← جارية ← منتهية ← مؤرشفة</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {actions.map((a) => (
@@ -93,6 +94,8 @@ export default function EventOverviewPage() {
           <Stat label="حضور فعلي" value={formatNumber(analytics.totals.actual_persons)} hint={`السعة المتبقية ${formatNumber(analytics.totals.capacity_remaining)}`} tone="lime" />
         </div>
       ) : <Loading label="جارٍ تحميل الإحصاءات…" />}
+
+      <AlertsCard compact />
 
       <div className="grid gap-5 lg:grid-cols-2">
         {/* التفاصيل */}

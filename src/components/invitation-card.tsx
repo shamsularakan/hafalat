@@ -153,7 +153,7 @@ export function InvitationCard({
               <span className="text-2xl" style={{ color: p.accent }} aria-hidden>{schema.cover.ornament || "✦"}</span>
               <h2 className="font-display mt-2 text-xl font-bold leading-relaxed sm:text-2xl">{substitute(schema.cover.title, vars ?? {})}</h2>
               {schema.cover.hosts && <p className="mt-1 text-sm" style={{ color: p.primary }}>{substitute(schema.cover.hosts, vars ?? {})}</p>}
-              {guestName && <p className="mt-2 text-xs" style={{ color: p.muted }}>ضيفنا الكريم: <b style={{ color: p.text }}>{guestName}</b></p>}
+              {guestName && !JSON.stringify(scene?.layers ?? []).includes("guest.name") && <p className="mt-2 text-xs" style={{ color: p.muted }}>ضيفنا الكريم: <b style={{ color: p.text }}>{guestName}</b></p>}
             </motion.div>
 
             {scene?.layers?.length ? (
@@ -170,7 +170,7 @@ export function InvitationCard({
                 <p className="text-xs" style={{ color: p.muted }}>{schema.details.date_label}</p>
                 <p className="font-display mt-1 text-lg font-bold" style={{ color: p.primary }}>{dual.hijri}</p>
                 <p className="mt-0.5 text-sm" style={{ color: p.text }}>{dual.gregorian} · {dual.time}</p>
-                {schema.show_countdown && event.starts_at && <Countdown target={event.starts_at} palette={p} />}
+                {!!schema.show_countdown && !!event.starts_at && <Countdown target={event.starts_at} palette={p} />}
               </motion.div>
             )}
 
@@ -187,7 +187,7 @@ export function InvitationCard({
                     <MapPin className="h-3.5 w-3.5" /> الاتجاهات على الخريطة
                   </a>
                 )}
-                {event.is_virtual && event.virtual_url && (
+                {!!event.is_virtual && !!event.virtual_url && (
                   <a href={event.virtual_url} target="_blank" rel="noreferrer"
                     className="inline-block rounded-full border px-3.5 py-1.5 text-xs font-bold"
                     style={{ borderColor: p.primary + "66", color: p.primary }}>

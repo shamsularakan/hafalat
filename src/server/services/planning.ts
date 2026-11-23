@@ -3,7 +3,7 @@ import { newId, nowIso, type DB } from "@/lib/db";
 import { err } from "@/lib/errors";
 import type { Ctx } from "@/lib/types";
 import { effectiveEventRole, loadEventScoped } from "@/lib/permissions";
-import { PLANNING_TEMPLATES } from "@/lib/planning-seeds";
+import type { TimelineTpl } from "@/lib/planning-seeds";
 import { writeAudit } from "@/lib/audit";
 
 type Area = "view" | "plan" | "finance" | "services";
@@ -50,9 +50,10 @@ export async function applyTemplate(ctx: Ctx, eventId: string, templateId?: stri
     : (await db.get<any>("SELECT * FROM planning_templates WHERE event_type = ?", event.type));
   if (!tpl) err("NOT_FOUND", "قالب التخطيط غير موجود لهذا النوع");
   const plan = (await getOrCreatePlan(ctx, eventId));
-  const day = (offset?: number) => {
-    if (!offset || !event.starts_at) return null;
-    return new Date(Date.parse(event.starts_at) + offset * 864e5).toISOString();
+  // offset بالأيام (0 = يوم المناسبة) و minutes بالدقائق من بداية الاستقبال
+  const day = (offset?: number, minutes?: number) => {
+    if (offset === undefined || offset === null || !event.starts_at) return null;
+    return new Date(Date.parse(event.starts_at) + offset * 864e5 + (minutes ?? 0) * 60e3).toISOString();
   };
   (await db.tx(async () => {
     // إعادة التهيئة: تطبيق قالب جديد يعيد بناء المهام/الفئات/الجدول/القوائم (يُظهر تحذيرًا بالواجهة)
@@ -84,16 +85,19 @@ export async function applyTemplate(ctx: Ctx, eventId: string, templateId?: stri
       "INSERT INTO checklists (id, event_id, organization_id, name, event_type) VALUES (?,?,?,?,?)",
       clId, eventId, ctx.actor.orgId, tpl.name_ar, event.type
     ));
-    items.forEach(async (text, i) =>
-      (await db.run("INSERT INTO checklist_items (id, checklist_id, text, sort_order) VALUES (?,?,?,?)", newId(), clId, text, i))
-    );
-    const timeline = JSON.parse(tpl.timeline_json) as { phase: string; title: string; offset: number }[];
-    timeline.forEach(async (t, i) =>
-      (await db.run(
-        "INSERT INTO timeline_items (id, event_id, organization_id, phase, title, starts_at, sort_order) VALUES (?,?,?,?,?,?,?)",
-        newId(), eventId, ctx.actor.orgId, t.phase, t.title, day(t.offset), i
-      ))
-    );
+    // تسلسلي داخل المعاملة (forEach(async) لا ينتظر الإدراج فيُفلت من المعاملة)
+    for (const [i, text] of items.entries()) {
+      await db.run("INSERT INTO checklist_items (id, checklist_id, text, sort_order) VALUES (?,?,?,?)", newId(), clId, text, i);
+    }
+    const timeline = JSON.parse(tpl.timeline_json) as TimelineTpl[];
+    for (const [i, t] of timeline.entries()) {
+      await db.run(
+        `INSERT INTO timeline_items (id, event_id, organization_id, phase, title, starts_at, sort_order, owner_label, show_to_guests)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        newId(), eventId, ctx.actor.orgId, t.phase, t.title, day(t.offset, t.minutes), i,
+        t.owner ?? null, t.guests === undefined ? (t.phase === "event_day" ? 1 : 0) : t.guests ? 1 : 0
+      );
+    }
     (await writeAudit(ctx.db, {
       orgId: ctx.actor.orgId, eventId, actorId: ctx.actor.user.id,
       action: "planning.template.apply", objectType: "event", objectId: eventId,
@@ -108,10 +112,17 @@ export async function planningDashboard(ctx: Ctx, eventId: string) {
   const db = ctx.db;
   const event = (await loadEventScoped(db, ctx.actor.orgId, eventId));
   const plan = (await getOrCreatePlan(ctx, eventId));
-  const count = async (sql: string, ...a: any[]) => (await db.get<{ n: number }>(sql, ...a))!.n;
+  const count = async (sql: string, ...a: any[]) => Number((await db.get<{ n: number }>(sql, ...a))!.n);
+  const phase = currentPhaseIndex({
+    status: event.status, starts_at: event.starts_at, ends_at: event.ends_at,
+    vendors_engaged: await count("SELECT COUNT(*) n FROM vendors WHERE event_id = ? AND status IN ('contracted','done')", eventId)
+      + await count("SELECT COUNT(*) n FROM payments WHERE event_id = ? AND kind = 'deposit'", eventId),
+    invitations_issued: await count("SELECT COUNT(*) n FROM invitations WHERE event_id = ? AND status NOT IN ('draft','cancelled')", eventId),
+  });
   return {
     event: { id: event.id, title: event.title, type: event.type, starts_at: event.starts_at, status: event.status },
     plan,
+    phases: EVENT_PHASES.map((p, i) => ({ ...p, state: i < phase ? "done" : i === phase ? "current" : "next" })),
     progress: {
       tasks_total: await count("SELECT COUNT(*) n FROM tasks WHERE event_id = ?", eventId),
       tasks_done: await count("SELECT COUNT(*) n FROM tasks WHERE event_id = ? AND status = 'done'", eventId),
@@ -129,16 +140,65 @@ export async function planningDashboard(ctx: Ctx, eventId: string) {
   };
 }
 
-export async function updatePlan(ctx: Ctx, eventId: string, input: { budget_total?: number; hospitality_cost_per_person?: number; notes?: string }) {
+export interface PlanInput {
+  budget_total?: number; hospitality_cost_per_person?: number; notes?: string;
+  men_count?: number; women_count?: number; seats_per_table?: number;
+  reserve_percent?: number; vat_rate?: number; vat_enabled?: boolean; headcount_source?: "manual" | "rsvp";
+}
+
+export async function updatePlan(ctx: Ctx, eventId: string, input: PlanInput) {
   (await requirePlanningAccess(ctx, eventId, "plan"));
   const p = (await getOrCreatePlan(ctx, eventId));
+  const num = (v: unknown, cur: number, label: string, min = 0, max = Number.MAX_SAFE_INTEGER) => {
+    if (v === undefined || v === null || v === "") return Number(cur ?? 0);
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < min || n > max) err("VALIDATION", `${label} غير صالح`);
+    return n;
+  };
+  if (input.headcount_source && !["manual", "rsvp"].includes(input.headcount_source)) err("VALIDATION", "مصدر عدد الضيوف غير صالح");
   (await ctx.db.run(
-    `UPDATE event_plans SET budget_total = ?, hospitality_cost_per_person = ?, notes = ?, updated_at = ? WHERE id = ?`,
-    input.budget_total === undefined ? p.budget_total : Number(input.budget_total),
-    input.hospitality_cost_per_person === undefined ? p.hospitality_cost_per_person : Number(input.hospitality_cost_per_person),
-    input.notes ?? p.notes, nowIso(), p.id
+    `UPDATE event_plans SET budget_total = ?, hospitality_cost_per_person = ?, notes = ?,
+       men_count = ?, women_count = ?, seats_per_table = ?, reserve_percent = ?, vat_rate = ?, vat_enabled = ?,
+       headcount_source = ?, updated_at = ? WHERE id = ?`,
+    num(input.budget_total, p.budget_total, "الميزانية"),
+    num(input.hospitality_cost_per_person, p.hospitality_cost_per_person, "تكلفة الشخص"),
+    input.notes ?? p.notes,
+    Math.round(num(input.men_count, p.men_count, "عدد الرجال", 0, 100000)),
+    Math.round(num(input.women_count, p.women_count, "عدد النساء", 0, 100000)),
+    Math.round(num(input.seats_per_table, p.seats_per_table || 8, "الكراسي لكل طاولة", 2, 50)),
+    num(input.reserve_percent, p.reserve_percent ?? 10, "نسبة الاحتياطي", 0, 50),
+    num(input.vat_rate, p.vat_rate ?? 15, "نسبة الضريبة", 0, 50),
+    input.vat_enabled === undefined ? (p.vat_enabled ?? 0) : input.vat_enabled ? 1 : 0,
+    input.headcount_source ?? p.headcount_source ?? "manual",
+    nowIso(), p.id
   ));
   return (await ctx.db.get("SELECT * FROM event_plans WHERE id = ?", p.id));
+}
+
+/** المراحل الست لحياة المناسبة — تُستنتج من البيانات الفعلية لا من إدخال يدوي */
+export const EVENT_PHASES = [
+  { key: "initial", title: "التخطيط الأولي", hint: "الهدف والتاريخ والمكان وعدد الضيوف وسقف الميزانية" },
+  { key: "vendors", title: "الحجوزات والموردون", hint: "اختيار الموردين ومقارنة العروض والعقود والعربون" },
+  { key: "invites", title: "الدعوات والضيوف", hint: "إرسال الدعوات ومتابعة الردود وتثبيت العدد" },
+  { key: "prep", title: "التحضير والمتابعة", hint: "تنفيذ المهام وتعديل الجداول ومتابعة الدفعات" },
+  { key: "day", title: "يوم المناسبة", hint: "تنفيذ الجدول والتنسيق واستقبال الضيوف" },
+  { key: "after", title: "ما بعد المناسبة", hint: "تسوية الحسابات وتقييم الموردين والأرشفة" },
+] as const;
+
+export function currentPhaseIndex(s: {
+  status: string; starts_at: string | null; ends_at?: string | null;
+  vendors_engaged: number; invitations_issued: number; now?: number;
+}): number {
+  const now = s.now ?? Date.now();
+  if (["ended", "archived"].includes(s.status)) return 5;
+  const start = s.starts_at ? Date.parse(s.starts_at) : NaN;
+  const end = s.ends_at ? Date.parse(s.ends_at) : start + 12 * 3600e3;
+  if (s.status === "ongoing" || (Number.isFinite(start) && now >= start - 12 * 3600e3 && now <= end)) return 4;
+  if (Number.isFinite(start) && now > end) return 5;
+  if (Number.isFinite(start) && start - now <= 30 * 864e5) return 3;
+  if (s.invitations_issued > 0) return 2;
+  if (s.vendors_engaged > 0) return 1;
+  return 0;
 }
 
 /* ===== المهام ===== */
@@ -189,10 +249,10 @@ export async function deleteTask(ctx: Ctx, eventId: string, taskId: string) {
 export async function listChecklists(ctx: Ctx, eventId: string) {
   (await requirePlanningAccess(ctx, eventId, "view"));
   const lists = (await ctx.db.all("SELECT * FROM checklists WHERE event_id = ? ORDER BY created_at", eventId));
-  return lists.map(async (c: any) => ({
+  return Promise.all(lists.map(async (c: any) => ({
     ...c,
     items: (await ctx.db.all("SELECT * FROM checklist_items WHERE checklist_id = ? ORDER BY sort_order", c.id)),
-  }));
+  })));
 }
 
 export async function saveChecklist(ctx: Ctx, eventId: string, input: { id?: string; name: string }) {
@@ -236,31 +296,55 @@ export async function deleteChecklistItem(ctx: Ctx, eventId: string, itemId: str
 }
 
 /* ===== الجدول الزمني ===== */
+/** يتحقق أن المورد من المناسبة نفسها */
+export async function vendorOf(ctx: Ctx, eventId: string, vendorId: unknown): Promise<string | null> {
+  if (!vendorId) return null;
+  const v = await ctx.db.get<{ id: string }>("SELECT id FROM vendors WHERE id = ? AND event_id = ?", String(vendorId), eventId);
+  if (!v) err("VALIDATION", "المورد غير موجود في هذه المناسبة");
+  return v.id;
+}
 export async function listTimeline(ctx: Ctx, eventId: string) {
   (await requirePlanningAccess(ctx, eventId, "view"));
   return (await ctx.db.all(
-    `SELECT tl.*, u.name owner_name FROM timeline_items tl LEFT JOIN users u ON u.id = tl.owner_id
+    `SELECT tl.*, u.name owner_name, v.name vendor_name, v.phone vendor_phone FROM timeline_items tl
+     LEFT JOIN users u ON u.id = tl.owner_id LEFT JOIN vendors v ON v.id = tl.vendor_id
      WHERE tl.event_id = ? ORDER BY CASE phase WHEN 'preparation' THEN 0 WHEN 'event_day' THEN 1 ELSE 2 END, sort_order`, eventId
   ));
 }
 
 export async function saveTimelineItem(ctx: Ctx, eventId: string, input: any, id?: string) {
   (await requirePlanningAccess(ctx, eventId, "plan"));
-  if (!input.title?.trim()) err("VALIDATION", "عنوان المرحلة مطلوب");
   if (id) {
+    // تحديث جزئي: زر «إكمال» يرسل done فقط، فنحتفظ ببقية الحقول
+    const old = await ctx.db.get<any>("SELECT * FROM timeline_items WHERE id = ? AND event_id = ?", id, eventId);
+    if (!old) err("NOT_FOUND", "المرحلة غير موجودة");
+    const has = (k: string) => Object.prototype.hasOwnProperty.call(input, k);
+    const title = has("title") ? String(input.title ?? "").trim() : old.title;
+    if (!title) err("VALIDATION", "عنوان المرحلة مطلوب");
     (await ctx.db.run(
-      "UPDATE timeline_items SET phase=?, title=?, description=?, starts_at=?, owner_id=?, done=? WHERE id=? AND event_id=?",
-      input.phase ?? "preparation", input.title.trim(), input.description ?? null, input.starts_at || null,
-      input.owner_id || null, input.done ? 1 : 0, id, eventId
+      `UPDATE timeline_items SET phase=?, title=?, description=?, starts_at=?, owner_id=?, done=?, owner_label=?, show_to_guests=?, vendor_id=?
+       WHERE id=? AND event_id=?`,
+      has("phase") ? input.phase : old.phase, title,
+      has("description") ? input.description || null : old.description,
+      has("starts_at") ? input.starts_at || null : old.starts_at,
+      has("owner_id") ? input.owner_id || null : old.owner_id,
+      has("done") ? (input.done ? 1 : 0) : old.done,
+      has("owner_label") ? input.owner_label || null : old.owner_label,
+      has("show_to_guests") ? (input.show_to_guests ? 1 : 0) : old.show_to_guests,
+      has("vendor_id") ? await vendorOf(ctx, eventId, input.vendor_id) : old.vendor_id,
+      id, eventId
     ));
   } else {
+    if (!input.title?.trim()) err("VALIDATION", "عنوان المرحلة مطلوب");
     id = newId();
     const n = (await ctx.db.get<{ n: number }>("SELECT COUNT(*) n FROM timeline_items WHERE event_id = ?", eventId))!.n;
     (await ctx.db.run(
-      `INSERT INTO timeline_items (id, event_id, organization_id, phase, title, description, starts_at, sort_order, owner_id)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO timeline_items (id, event_id, organization_id, phase, title, description, starts_at, sort_order, owner_id, owner_label, show_to_guests, vendor_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
       id, eventId, ctx.actor.orgId, input.phase ?? "preparation", input.title.trim(), input.description ?? null,
-      input.starts_at || null, n, input.owner_id || null
+      input.starts_at || null, n, input.owner_id || null, input.owner_label || null,
+      input.show_to_guests === undefined ? ((input.phase ?? "preparation") === "event_day" ? 1 : 0) : input.show_to_guests ? 1 : 0,
+      await vendorOf(ctx, eventId, input.vendor_id)
     ));
   }
   return (await ctx.db.get("SELECT * FROM timeline_items WHERE id = ?", id));

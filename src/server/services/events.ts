@@ -8,6 +8,7 @@ import {
 import { writeAudit } from "@/lib/audit";
 import { assertPlanEventLimit } from "@/lib/plans";
 import { applyTemplate } from "./planning";
+import { shiftPlanForNewDate } from "./operations";
 
 const TRANSITIONS: Record<EventStatus, EventStatus[]> = {
   draft: ["ready", "cancelled"],
@@ -169,6 +170,10 @@ export async function updateEvent(ctx: Ctx, eventId: string, input: Partial<Even
     `UPDATE events SET ${fields.map(([k]) => `${k} = ?`).join(", ")}, updated_at = ? WHERE id = ?`,
     ...fields.map(([, v]) => v), nowIso(), eventId
   ));
+  // تغيّر الموعد يزيح المهام وجدول اليوم بالفرق نفسه (كل محطة محسوبة من تاريخ المناسبة)
+  if (map.starts_at !== undefined && map.starts_at !== event.starts_at) {
+    (await shiftPlanForNewDate(ctx, eventId, event.starts_at, map.starts_at));
+  }
   (await writeAudit(ctx.db, {
     orgId: ctx.actor.orgId, eventId, actorId: ctx.actor.user.id,
     action: "event.update", objectType: "event", objectId: eventId,

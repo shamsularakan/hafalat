@@ -1,9 +1,10 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { ClipboardList, CalendarDays, CheckCircle2, ListChecks, Clock, Wallet, Users } from "lucide-react";
+import { ClipboardList, CalendarDays, CheckCircle2, ListChecks, Clock, Wallet, Users, PackageCheck, Check } from "lucide-react";
 import { api } from "@/lib/client";
 import { useEvent } from "@/components/event-context";
+import { AlertsCard } from "@/components/planning-widgets";
 import { formatNumber, formatDateShort, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, Stat } from "@/components/ui/card";
@@ -20,7 +21,7 @@ function Countdown({ target }: { target: string | null }) {
     return () => clearInterval(t);
   }, [target]);
   if (!target) return <p className="text-sm text-muted">لم يُحدد موعد المناسبة بعد.</p>;
-  if (left <= 0) return <p className="text-lg font-extrabold text-success">حانت اللحظة — بالتوفيق! 🎉</p>;
+  if (left <= 0) return <p className="text-lg font-extrabold text-lime-400">حانت اللحظة — بالتوفيق!</p>;
   const cells = [
     { v: Math.floor(left / 864e5), l: "يوم" },
     { v: Math.floor((left % 864e5) / 3600e3), l: "ساعة" },
@@ -36,6 +37,34 @@ function Countdown({ target }: { target: string | null }) {
         </div>
       ))}
     </div>
+  );
+}
+
+/** المراحل الست: الثلاث الأولى تُحسم فيها التكلفة، والثلاث الأخيرة جودة التنفيذ */
+function Phases({ phases }: { phases: { key: string; title: string; hint: string; state: "done" | "current" | "next" }[] }) {
+  const { event } = useEvent();
+  const current = phases.find((p) => p.state === "current");
+  return (
+    <Card>
+      <CardHeader className="flex-wrap">
+        <CardTitle className="text-sm">مراحل المناسبة</CardTitle>
+        <Link href={`/app/events/${event.id}/supplies`}><Button variant="outline" size="sm"><PackageCheck className="h-4 w-4" /> قائمتي والكميات</Button></Link>
+      </CardHeader>
+      <ol className="grid grid-cols-3 gap-2 sm:grid-cols-6" aria-label="مراحل المناسبة">
+        {phases.map((p, i) => (
+          <li key={p.key} aria-current={p.state === "current" ? "step" : undefined}
+            className={cn("rounded-xl border p-2.5 text-center",
+              p.state === "current" ? "border-lime-500 bg-lime-100" : p.state === "done" ? "border-success/25 bg-success/5" : "border-navy-950/8 bg-white")}>
+            <span className={cn("mx-auto mb-1.5 flex h-7 w-7 items-center justify-center rounded-full text-xs font-extrabold",
+              p.state === "current" ? "bg-navy-950 text-lime-400" : p.state === "done" ? "bg-success text-white" : "bg-navy-950/8 text-muted")}>
+              {p.state === "done" ? <Check className="h-3.5 w-3.5" /> : formatNumber(i + 1)}
+            </span>
+            <span className={cn("block text-xs font-bold leading-5", p.state === "next" && "text-muted")}>{p.title}</span>
+          </li>
+        ))}
+      </ol>
+      {current && <p className="mt-3 text-sm text-muted"><b className="text-navy-950">المرحلة الحالية — {current.title}:</b> {current.hint}.</p>}
+    </Card>
   );
 }
 
@@ -92,6 +121,9 @@ export default function PlanPage() {
           </div>
         </div>
       </Card>
+
+      {data.phases && <Phases phases={data.phases} />}
+      <AlertsCard />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Progress label="المهام" done={p.tasks_done} total={p.tasks_total} icon={CheckCircle2} />

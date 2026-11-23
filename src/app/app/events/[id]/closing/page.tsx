@@ -1,6 +1,8 @@
 "use client";
 import * as React from "react";
-import { Flag, Download, CheckCircle2 } from "lucide-react";
+import { Flag, Download, CheckCircle2, Printer } from "lucide-react";
+import { EVENT_STATUS_AR } from "@/lib/types";
+import { VendorRatings } from "@/components/planning-widgets";
 import { api } from "@/lib/client";
 import { useEvent } from "@/components/event-context";
 import { formatNumber, formatDateShort } from "@/lib/utils";
@@ -29,15 +31,16 @@ export default function ClosingPage() {
   const clPct = pr.checklist_total ? Math.round((pr.checklist_done / pr.checklist_total) * 100) : 0;
   const tlPct = pr.timeline_total ? Math.round((pr.timeline_done / pr.timeline_total) * 100) : 0;
   return (
-    <div className="space-y-5 animate-fade-up">
+    <div className="print-area space-y-5 animate-fade-up">
       <Card className="border-navy-950 bg-navy-950 text-ivory">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="flex items-center gap-2 text-xs text-ivory/60"><Flag className="h-4 w-4" /> تقرير إغلاق المناسبة</p>
             <h2 className="font-display mt-1 text-2xl font-bold">{event.title}</h2>
-            <p className="mt-1 text-xs text-ivory/60">{formatDateShort(event.starts_at, event.timezone)} · الحالة: {event.status}</p>
+            <p className="mt-1 text-xs text-ivory/60">{formatDateShort(event.starts_at, event.timezone)} · الحالة: {EVENT_STATUS_AR[event.status as keyof typeof EVENT_STATUS_AR] ?? event.status}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 print:hidden">
+            <Button variant="outline" className="border-ivory/30 bg-transparent text-ivory hover:bg-ivory/10" onClick={() => window.print()}><Printer className="h-4 w-4" /> طباعة / PDF</Button>
             <Button variant="outline" className="border-ivory/30 bg-transparent text-ivory hover:bg-ivory/10" onClick={() => window.open(`/api/events/${event.id}/export?kind=summary`, "_blank")}><Download className="h-4 w-4" /> تصدير ملخص الدعوات</Button>
             <Button variant="outline" className="border-ivory/30 bg-transparent text-ivory hover:bg-ivory/10" onClick={() => window.open(`/api/events/${event.id}/export?kind=checkins`, "_blank")}><Download className="h-4 w-4" /> تصدير الدخول</Button>
           </div>
@@ -99,8 +102,13 @@ export default function ClosingPage() {
           </Table>
         )}
       </Card>
+      <ClosingExtras />
     </div>
   );
+}
+
+function ClosingExtras() {
+  return <VendorRatings />;
 }
 
 function Row({ k, v, strong }: { k: string; v: string; strong?: boolean }) {

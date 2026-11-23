@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Send, Copy, MessageCircle, Ban, Plus, Check, QrCode } from "lucide-react";
 import { api } from "@/lib/client";
 import { useEvent } from "@/components/event-context";
-import { statusTone, cn } from "@/lib/utils";
+import { statusTone, cn, formatDateShort } from "@/lib/utils";
 import { INVITATION_STATUS_AR } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Table, TH, TD, TR } from "@/components/ui/table";
 import { Loading, ErrorState, EmptyState, useToast } from "@/components/ui/feedback";
 
-const DEFAULT_MESSAGE = "السلام عليكم {اسم_الضيف} 🌿\nنتشرف بدعوتكم لحضور «{اسم_المناسبة}».\nدعوتكم الخاصة مع التفاصيل وتأكيد الحضور:\n{رابط_الدعوة}\nحضوركم يكمل فرحتنا!";
+const DEFAULT_MESSAGE = "السلام عليكم ورحمة الله {اسم_الضيف}،\nيتشرف {صاحب_المناسبة} بدعوتكم لحضور «{اسم_المناسبة}».\n\n📅 {التاريخ}\n📍 {المكان}\n\nدعوتكم الخاصة مع التفاصيل وتأكيد الحضور:\n{رابط_الدعوة}\n\nحضوركم يكمل فرحتنا.";
 
 export default function SendPage() {
   const { event, role } = useEvent();
@@ -48,8 +48,12 @@ export default function SendPage() {
   function renderMessage(inv: any) {
     return message
       .replaceAll("{اسم_الضيف}", inv.guest_name)
-      .replaceAll("{رابط_الدعوة}", inv.url)
-      .replaceAll("{اسم_المناسبة}", event.title);
+      // الرابط المختصر أولًا (أنظف في واتساب)، والكامل احتياطًا
+      .replaceAll("{رابط_الدعوة}", inv.short_url ?? inv.url)
+      .replaceAll("{اسم_المناسبة}", event.title)
+      .replaceAll("{صاحب_المناسبة}", event.host_name || "أصحاب المناسبة")
+      .replaceAll("{التاريخ}", event.starts_at ? formatDateShort(event.starts_at, event.timezone) : "يُحدد لاحقًا")
+      .replaceAll("{المكان}", [event.venue_name, event.venue_address].filter(Boolean).join(" — ") || "يُحدد لاحقًا");
   }
 
   async function share(inv: any, channel: "whatsapp_manual" | "link_copy") {
@@ -111,7 +115,7 @@ export default function SendPage() {
           )}
         </div>
         <Textarea rows={3} value={message} onChange={(e) => setMessage(e.target.value)} />
-        <p className="mt-1.5 text-[11px] text-muted">المعاملات المتاحة: {"{اسم_الضيف}"} · {"{رابط_الدعوة}"} · {"{اسم_المناسبة}"} — معاينة قبل الإرسال متاحة لكل دعوة.</p>
+        <p className="mt-1.5 text-[11px] text-muted">المعاملات المتاحة: {"{اسم_الضيف}"} {"{رابط_الدعوة}"} {"{اسم_المناسبة}"} {"{صاحب_المناسبة}"} {"{التاريخ}"} {"{المكان}"} — الرابط يُرسل مختصرًا، ومعاينة الرسالة متاحة قبل الإرسال.</p>
       </Card>
 
       {!invitations ? <Loading /> : invitations.length === 0 ? (

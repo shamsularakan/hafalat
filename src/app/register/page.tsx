@@ -26,9 +26,9 @@ export default function RegisterPage() {
     try {
       await api.post("/api/auth/register", {
         name: form.name, email: form.email || undefined, phone: form.phone || undefined,
-        password: form.password, orgName: form.orgName || form.name, orgKind: form.orgKind,
+        password: form.password, orgName: form.orgName || form.name, orgKind: form.orgKind === "vendor" ? "company" : form.orgKind,
       });
-      router.push("/app");
+      router.push(form.orgKind === "vendor" ? "/app/vendor" : "/app");
       router.refresh();
     } catch (err: any) {
       setError(err.message);
@@ -60,6 +60,7 @@ export default function RegisterPage() {
               <Field label="نوع مساحة العمل" htmlFor="kind">
                 <Select id="kind" value={form.orgKind} onChange={set("orgKind")}>
                   <option value="individual">فرد</option>
+                  <option value="vendor">مورد خدمات (قاعة، ضيافة، تصوير…)</option>
                   <option value="company">مؤسسة</option>
                 </Select>
               </Field>

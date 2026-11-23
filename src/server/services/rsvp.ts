@@ -66,7 +66,7 @@ export async function getGuestPage(db: DB, rawToken: string): Promise<GuestPageP
   const designSchema = design ? JSON.parse(design.scenes_json) : null;
   const d = designSchema?.details ?? {};
   const publishedSteps = (await db.all<{ starts_at: string | null; title: string; sort_order: number }>(
-    "SELECT starts_at, title, sort_order FROM timeline_items WHERE event_id = ? AND phase = 'event_day' ORDER BY sort_order, starts_at", inv.event_id
+    "SELECT starts_at, title, sort_order FROM timeline_items WHERE event_id = ? AND phase = 'event_day' AND show_to_guests = 1 ORDER BY starts_at, sort_order", inv.event_id
   ));
   const program = publishedSteps
     .map((x) => {

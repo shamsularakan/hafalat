@@ -24,15 +24,19 @@
   --color-lime-100: #F3E6D9;
   --color-ivory: #EDE9E6;
   --color-ivory-soft: #FBF8F5;
-  --color-muted: #8A7A70;
-  --color-brand-orange: #B88655;
+  /* نص ثانوي: 5.5:1 على الخلفية (كان #8A7A70 = 3.9:1 لا يجتاز WCAG AA) */
+  --color-muted: #72625A;
+  /* حبر النص على الذهبي: 5.2:1 (كان البني #4A3B36 = 4.2:1) */
+  --color-ink: #3A2D29;
+  /* لون التحذير نصًّا: 5.3:1 على الأبيض (كان #B88655 = 2.9:1) */
+  --color-brand-orange: #8F6237;
   --color-success: #4F6B5F;
   --color-danger: #A24B3F;
 
   /* ثمانية: Thmanyah Serif Display/Serif Text + Sans عند توفر الترخيص */
-  --font-sans: "Thmanyah Sans", "IBM Plex Sans Arabic", "Noto Kufi Arabic", "Segoe UI", Tahoma, Arial, sans-serif;
-  --font-display: "Thmanyah Serif Display", "Amiri", "Noto Naskh Arabic", "Times New Roman", serif;
-  --font-text: "Thmanyah Serif Text", "Amiri", "Noto Naskh Arabic", Georgia, serif;
+  --font-sans: "Thmanyah Sans", var(--font-plex), "IBM Plex Sans Arabic", "Noto Kufi Arabic", "Segoe UI", Tahoma, Arial, sans-serif;
+  --font-display: "Thmanyah Serif Display", var(--font-amiri), "Amiri", "Noto Naskh Arabic", "Times New Roman", serif;
+  --font-text: "Thmanyah Serif Text", var(--font-amiri), "Amiri", "Noto Naskh Arabic", Georgia, serif;
 
   --radius-card: 1.25rem;
   --animate-fade-up: fade-up 0.35s ease-out both;
@@ -100,4 +104,17 @@ body {
 .invitation-frame {
   aspect-ratio: 9 / 16;
   max-height: 78vh;
+}
+
+/* ===== الطباعة / PDF: يُطبع ما داخل .print-area فقط ===== */
+@media print {
+  @page { margin: 14mm; }
+  body { background: #fff; }
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area { position: absolute; inset: 0 0 auto 0; width: 100%; }
+  [role="dialog"], [role="dialog"] * { overflow: visible !important; max-height: none !important; }
+  [role="dialog"] { position: absolute !important; }
+  .print-area .animate-fade-up, .print-area [class*="shadow"] { animation: none !important; box-shadow: none !important; }
+  input, select { border: none !important; background: transparent !important; }
 }

@@ -4,13 +4,43 @@ import { AppError } from "@/lib/errors";
 import { GuestClient } from "@/components/guest-client";
 import { Brand } from "@/components/brand";
 import Link from "next/link";
+import type { Metadata } from "next";
+import { headers } from "next/headers";
+import { findInvitationByToken } from "@/server/services/rsvp";
+
+/** زواحف معاينة الروابط (واتساب وغيرها) تفتح الرابط تلقائيًا — لا نحسبها «مشاهدة» من الضيف */
+const PREVIEW_BOTS = /WhatsApp|facebookexternalhit|Facebot|TelegramBot|Twitterbot|Slackbot|LinkedInBot|Discordbot|SkypeUriPreview|Googlebot/i;
+
+async function previewInfo(token: string) {
+  try {
+    const db = await getDb();
+    const inv = await findInvitationByToken(db, token);
+    const ev = await db.get<{ title: string; host_name: string | null }>("SELECT title, host_name FROM events WHERE id = ?", inv.event_id);
+    return ev ?? null;
+  } catch { return null; }
+}
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "دعوتك", robots: { index: false, follow: false } };
+/** بطاقة المعاينة في واتساب: اسم المناسبة ونص قصير — بلا اسم الضيف أو أي بيانات شخصية */
+export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
+  const { token } = await params;
+  const ev = await previewInfo(token);
+  const title = ev ? ev.title : "دعوتك";
+  const description = ev ? `دعوة خاصة${ev.host_name ? ` من ${ev.host_name}` : ""} — اضغط لفتح الدعوة وتأكيد الحضور` : "دعوة خاصة عبر ليلتنا";
+  return {
+    title, description, robots: { index: false, follow: false },
+    openGraph: { title, description, siteName: "ليلتنا | LAYLATNA", locale: "ar_SA", type: "website" },
+  };
+}
 
 /** صفحة الضيف العامة: آمنة، بلا كشف بيانات آخرين (AC-07) */
 export default async function GuestPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  const ua = (await headers()).get("user-agent") ?? "";
+  if (PREVIEW_BOTS.test(ua)) {
+    const ev = await previewInfo(token);
+    return <main dir="rtl" className="p-8 text-center"><h1>{ev?.title ?? "دعوتك"}</h1><p>دعوة خاصة — افتح الرابط لعرض التفاصيل وتأكيد الحضور.</p></main>;
+  }
   try {
     const payload = (await getGuestPage((await getDb()), token));
     return <GuestClient payload={payload} token={token} />;

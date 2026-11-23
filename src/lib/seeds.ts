@@ -129,14 +129,14 @@ BUILTIN_TEMPLATES.push(
 );
 
 export async function seedPlans(db: DB) {
-  PLANS_SEED.forEach(async (p, i) => {
+  for (const [i, p] of PLANS_SEED.entries()) {
     (await db.run(
       `INSERT INTO plans (id, name_ar, price_monthly_sar, max_active_events, max_guests_per_event, max_delegates_per_event, storage_mb, advanced_templates, custom_branding, multi_seat, sort_order)
        VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`,
       p.id, p.name_ar, p.price_monthly_sar, p.max_active_events, p.max_guests_per_event,
       p.max_delegates_per_event, p.storage_mb, p.advanced_templates, p.custom_branding, p.multi_seat, i
     ));
-  });
+  }
 }
 
 export async function seedTemplates(db: DB) {

@@ -4,6 +4,7 @@ import { err } from "@/lib/errors";
 import type { Ctx } from "@/lib/types";
 import { writeAudit } from "@/lib/audit";
 import { requirePlanningAccess, getOrCreatePlan } from "./planning";
+import { markOverduePayments } from "./operations";
 
 const sum = async (db: DB, sql: string, ...a: any[]) => Number((await db.get<{ n: number }>(sql, ...a))?.n ?? 0);
 
@@ -11,6 +12,7 @@ export async function financeSummary(ctx: Ctx, eventId: string) {
   (await requirePlanningAccess(ctx, eventId, "finance"));
   const db = ctx.db;
   const plan = (await getOrCreatePlan(ctx, eventId));
+  await markOverduePayments(ctx, eventId);
   const budget = Number(plan.budget_total || 0);
   const committed = await sum(db, "SELECT COALESCE(SUM(amount),0) n FROM expenses WHERE event_id = ? AND status != 'cancelled'", eventId);
   const spentActual = await sum(db, "SELECT COALESCE(SUM(amount),0) n FROM expenses WHERE event_id = ? AND status = 'paid'", eventId);
@@ -54,24 +56,32 @@ export async function listExpenses(ctx: Ctx, eventId: string) {
 export async function saveExpense(ctx: Ctx, eventId: string, input: any, id?: string) {
   (await requirePlanningAccess(ctx, eventId, "finance"));
   if (!input.title?.trim()) err("VALIDATION", "اسم المصروف مطلوب");
-  const amount = Number(input.amount);
+  let amount = Number(input.amount);
   if (!Number.isFinite(amount) || amount < 0) err("VALIDATION", "مبلغ غير صالح");
   const db = ctx.db;
+  // الضريبة جزء من التكلفة: add_vat يعني أن المبلغ المدخل قبل الضريبة فتُضاف إليه
+  let vatAmount = Number(input.vat_amount ?? 0);
+  if (input.add_vat) {
+    const rate = Number((await getOrCreatePlan(ctx, eventId)).vat_rate ?? 15);
+    vatAmount = Math.round(amount * rate) / 100;
+    amount = Math.round((amount + vatAmount) * 100) / 100;
+  }
+  if (!Number.isFinite(vatAmount) || vatAmount < 0 || vatAmount > amount) err("VALIDATION", "مبلغ الضريبة غير صالح");
   if (id) {
     const old = (await db.get("SELECT * FROM expenses WHERE id = ? AND event_id = ?", id, eventId));
     if (!old) err("NOT_FOUND");
     (await db.run(
-      `UPDATE expenses SET title=?, amount=?, category_id=?, vendor_id=?, expense_date=?, status=?, notes=?, attachment_id=? WHERE id=?`,
-      input.title.trim(), amount, input.category_id || null, input.vendor_id || null, input.expense_date || null,
+      `UPDATE expenses SET title=?, amount=?, vat_amount=?, category_id=?, vendor_id=?, expense_date=?, status=?, notes=?, attachment_id=? WHERE id=?`,
+      input.title.trim(), amount, vatAmount, input.category_id || null, input.vendor_id || null, input.expense_date || null,
       input.status ?? old.status, input.notes ?? null, input.attachment_id || null, id
     ));
   } else {
     id = newId();
     (await db.run(
-      `INSERT INTO expenses (id, event_id, organization_id, category_id, vendor_id, title, amount, expense_date, status, notes, attachment_id, created_by)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO expenses (id, event_id, organization_id, category_id, vendor_id, title, amount, vat_amount, expense_date, status, notes, attachment_id, created_by)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       id, eventId, ctx.actor.orgId, input.category_id || null, input.vendor_id || null,
-      input.title.trim(), amount, input.expense_date || null, input.status ?? "planned", input.notes ?? null,
+      input.title.trim(), amount, vatAmount, input.expense_date || null, input.status ?? "planned", input.notes ?? null,
       input.attachment_id || null, ctx.actor.user.id
     ));
   }
@@ -91,6 +101,7 @@ export async function deleteExpense(ctx: Ctx, eventId: string, id: string) {
 
 export async function listPayments(ctx: Ctx, eventId: string) {
   (await requirePlanningAccess(ctx, eventId, "finance"));
+  await markOverduePayments(ctx, eventId);
   return (await ctx.db.all(
     `SELECT p.*, e.title expense_title, v.name vendor_name FROM payments p
      LEFT JOIN expenses e ON e.id = p.expense_id LEFT JOIN vendors v ON v.id = p.vendor_id

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   CalendarHeart, LayoutDashboard, CalendarDays, CreditCard, Settings, LogOut, ChevronDown, ShieldCheck,
-  Home, QrCode, BarChart3, LayoutGrid, Palette,
+  Home, QrCode, BarChart3, LayoutGrid, Palette, Store,
 } from "lucide-react";
 import { api } from "@/lib/client";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,7 @@ import { Brand } from "@/components/brand";
 
 export interface SessionInfo {
   user: { id: string; name: string; email: string | null; phone?: string | null; is_platform_admin?: number };
-  active_org: { id: string; name: string; kind: string; plan_id: string; role: string };
+  active_org: { id: string; name: string; kind: string; plan_id: string; role: string; is_vendor?: boolean };
   memberships: { id: string; name: string; kind: string; role: string }[];
 }
 
@@ -41,12 +41,15 @@ export function AppShell({ session, children }: { session: SessionInfo; children
   const router = useRouter();
   const [orgMenu, setOrgMenu] = React.useState(false);
 
-  const nav = React.useMemo(
-    () => session.user.is_platform_admin === 1
-      ? [...NAV, { href: "/app/admin", label: "مدير المنصة", short: "المنصة", icon: ShieldCheck, exact: false }]
-      : NAV,
-    [session.user.is_platform_admin]
-  );
+  const nav = React.useMemo(() => {
+    // مساحة عمل المورد: بوابة المورد أولًا
+    const base = session.active_org.is_vendor
+      ? [{ href: "/app/vendor", label: "بوابة المورد", icon: Store, exact: false }, ...NAV]
+      : NAV;
+    return session.user.is_platform_admin === 1
+      ? [...base, { href: "/app/admin", label: "مدير المنصة", short: "المنصة", icon: ShieldCheck, exact: false }]
+      : base;
+  }, [session.user.is_platform_admin, session.active_org.is_vendor]);
 
   async function switchOrg(orgId: string) {
     await api.post("/api/auth/switch-org", { org_id: orgId });
@@ -153,7 +156,7 @@ export function AppShell({ session, children }: { session: SessionInfo; children
 
         {/* تبويب سفلي — الجوال */}
         <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-navy-950/10 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="التنقل الرئيسي">
-          {MOBILE_NAV.map((n) => (
+          {(session.active_org.is_vendor ? [{ href: "/app/vendor", label: "بوابتي", icon: Store, exact: false }, ...MOBILE_NAV.slice(1)] : MOBILE_NAV).map((n) => (
             <Link key={n.href} href={n.href}
               className={cn(
                 "flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-bold transition-colors",

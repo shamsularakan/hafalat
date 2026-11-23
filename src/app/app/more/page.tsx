@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { Settings, CreditCard, ShieldCheck, FileText, Users, Heart, ArrowLeft } from "lucide-react";
+import { Settings, CreditCard, ShieldCheck, FileText, Users, Heart, ArrowLeft, Store } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 const ITEMS = [
@@ -10,6 +10,7 @@ const ITEMS = [
   { href: "/app/admin", label: "لوحة مدير المنصة", desc: "الإشراف العام والباقات والقوالب (للمدير فقط)", icon: ShieldCheck },
   { href: "/app/events", label: "كل المناسبات", desc: "الدعوات، الضيوف، المفوّضون، والتقارير", icon: FileText },
   { href: "/app/events", label: "فريق التنظيم", desc: "الأدوار والصلاحيات لكل مناسبة", icon: Users },
+  { href: "/app/vendor", label: "بوابة المورد", desc: "اعرض منتجاتك وباقاتك وأيام توفرك لأصحاب المناسبات", icon: Store },
   { href: "/", label: "عن ليلتنا", desc: "الصفحة التعريفية والأسعار", icon: Heart },
 ];
 

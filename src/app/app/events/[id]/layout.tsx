@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, UserCheck, Palette, Send, QrCode, BarChart3, Shield,
-  ClipboardList, Wallet, ReceiptText, ListTodo, Truck, CalendarClock, Flag, LayoutGrid,
+  ClipboardList, Wallet, ReceiptText, ListTodo, Truck, CalendarClock, Flag, LayoutGrid, PackageCheck, DoorOpen,
 } from "lucide-react";
 import { EventProvider, useEvent } from "@/components/event-context";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,7 @@ type Tab = { seg: string; label: string; icon: any; roles: string[] };
 const TABS: Tab[] = [
   { seg: "", label: "نظرة عامة", icon: LayoutDashboard, roles: ROLES_ALL },
   { seg: "plan", label: "مركز التخطيط", icon: ClipboardList, roles: ROLES_ALL },
+  { seg: "supplies", label: "قائمتي والكميات", icon: PackageCheck, roles: ROLES_ALL },
   { seg: "budget", label: "الميزانية", icon: Wallet, roles: ROLES_ALL },
   { seg: "payments", label: "المدفوعات", icon: ReceiptText, roles: ROLES_ALL },
   { seg: "tasks", label: "المهام", icon: ListTodo, roles: ROLES_ALL },
@@ -33,16 +34,16 @@ const TABS: Tab[] = [
   { seg: "send", label: "الإرسال", icon: Send, roles: ["owner", "manager", "supervisor", "delegate"] },
   { seg: "checkin", label: "الاستقبال", icon: QrCode, roles: ["owner", "manager", "supervisor", "receptionist"] },
   { seg: "reports", label: "تقارير الدعوات", icon: BarChart3, roles: ["owner", "manager", "supervisor", "delegate"] },
-  { seg: "staff", label: "الطاقم والبوابات", icon: Shield, roles: ["owner", "manager"] },
+  { seg: "staff", label: "الطاقم والبوابات", icon: DoorOpen, roles: ["owner", "manager"] },
 ];
 
 const GROUPS = [
-  { title: "التخطيط والمتابعة", segs: ["", "plan", "budget", "payments", "tasks", "timeline", "closing"] },
+  { title: "التخطيط والمتابعة", segs: ["", "plan", "supplies", "budget", "payments", "tasks", "timeline", "closing"] },
   { title: "الموردون والفريق", segs: ["vendors", "team", "staff"] },
   { title: "الدعوات والضيوف", segs: ["guests", "delegates", "design", "send", "checkin", "reports"] },
 ];
 
-const QUICK = ["", "plan", "budget", "tasks"];
+const QUICK = ["plan", "supplies", "budget", "tasks"];
 
 function EventHeader() {
   const { event, role } = useEvent();

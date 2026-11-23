@@ -20,6 +20,7 @@ export default function GuestsPage() {
   const [error, setError] = React.useState("");
   const [q, setQ] = React.useState("");
   const [groupFilter, setGroupFilter] = React.useState("");
+  const [sectionFilter, setSectionFilter] = React.useState("");
   const [adding, setAdding] = React.useState(false);
   const [editing, setEditing] = React.useState<any>(null);
   const [importing, setImporting] = React.useState(false);
@@ -31,8 +32,9 @@ export default function GuestsPage() {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
     if (groupFilter) params.set("group_id", groupFilter);
+    if (sectionFilter) params.set("section", sectionFilter);
     api.get<any[]>(`/api/events/${event.id}/guests?${params}`).then(setGuests).catch((e) => setError(e.message));
-  }, [event.id, q, groupFilter]);
+  }, [event.id, q, groupFilter, sectionFilter]);
   React.useEffect(load, [load]);
 
   async function exportCsv() {
@@ -50,6 +52,12 @@ export default function GuestsPage() {
             <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
             <Input className="pr-9" placeholder="بحث بالاسم أو الهاتف…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
+          <Select className="w-32" value={sectionFilter} onChange={(e) => setSectionFilter(e.target.value)} aria-label="تصفية بالقسم">
+            <option value="">كل الأقسام</option>
+            <option value="men">رجال</option>
+            <option value="women">نساء</option>
+            <option value="none">بلا قسم</option>
+          </Select>
           <Select className="w-40" value={groupFilter} onChange={(e) => setGroupFilter(e.target.value)} aria-label="تصفية بالفئة">
             <option value="">كل الفئات</option>
             {groups.map((g: any) => <option key={g.id} value={g.id}>{g.name}</option>)}
@@ -58,7 +66,7 @@ export default function GuestsPage() {
         {canManage && (
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => setGroupsDialog(true)}><Users className="h-4 w-4" /> الفئات</Button>
-            <Button variant="outline" size="sm" onClick={() => setImporting(true)}><Upload className="h-4 w-4" /> استيراد CSV</Button>
+            <Button variant="outline" size="sm" onClick={() => setImporting(true)}><Upload className="h-4 w-4" /> إضافة بالجملة</Button>
             <Button variant="outline" size="sm" onClick={exportCsv}><Download className="h-4 w-4" /> تصدير</Button>
             <Button size="sm" onClick={() => setAdding(true)}><Plus className="h-4 w-4" /> ضيف جديد</Button>
           </div>
@@ -72,7 +80,7 @@ export default function GuestsPage() {
         <Card className="p-0">
           <Table>
             <thead>
-              <tr><TH>الضيف</TH><TH>الهاتف</TH><TH>الفئة</TH><TH>الداعي</TH><TH>حالة الدعوة</TH><TH>أضيف</TH>{canManage && <TH />}</tr>
+              <tr><TH>الضيف</TH><TH>الهاتف</TH><TH>القسم</TH><TH>الفئة</TH><TH>الداعي</TH><TH>حالة الدعوة</TH><TH>أضيف</TH>{canManage && <TH />}</tr>
             </thead>
             <tbody>
               {guests.map((g) => (
@@ -82,6 +90,7 @@ export default function GuestsPage() {
                     {g.conflict ? <Badge tone="warning" className="mr-2">تعارض</Badge> : null}
                   </TD>
                   <TD dir="ltr" className="text-left text-muted">{g.phone ?? "—"}</TD>
+                  <TD>{g.section === "men" ? "رجال" : g.section === "women" ? "نساء" : "—"}</TD>
                   <TD>{g.group_name ?? "—"}</TD>
                   <TD className="text-muted">{g.inviter_name ?? "المالك"}</TD>
                   <TD>
@@ -121,7 +130,7 @@ function GuestDialog({ guest, onClose, onSaved }: { guest?: any; onClose: () => 
   const { event, groups } = useEvent();
   const [form, setForm] = React.useState({
     name: guest?.name ?? "", phone: guest?.phone ?? "", email: guest?.email ?? "",
-    group_id: guest?.group_id ?? "", notes: guest?.notes ?? "",
+    group_id: guest?.group_id ?? "", notes: guest?.notes ?? "", section: guest?.section ?? "",
   });
   const [error, setError] = React.useState("");
   const [saving, setSaving] = React.useState(false);
@@ -131,7 +140,7 @@ function GuestDialog({ guest, onClose, onSaved }: { guest?: any; onClose: () => 
   async function save() {
     setSaving(true); setError("");
     try {
-      const payload = { name: form.name, phone: form.phone || undefined, email: form.email || undefined, group_id: form.group_id || null, notes: form.notes || undefined };
+      const payload = { name: form.name, phone: form.phone || undefined, email: form.email || undefined, group_id: form.group_id || null, notes: form.notes || undefined, section: form.section || null };
       if (guest) await api.patch(`/api/guests/${guest.id}`, payload);
       else await api.post(`/api/events/${event.id}/guests`, payload);
       onSaved();
@@ -147,6 +156,13 @@ function GuestDialog({ guest, onClose, onSaved }: { guest?: any; onClose: () => 
         </Field>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="البريد (اختياري)" htmlFor="g-email"><Input id="g-email" dir="ltr" className="text-left" value={form.email} onChange={set("email")} /></Field>
+          <Field label="القسم" htmlFor="g-section" hint="يحدد كميات أكياس العبايات وتوزيع الطاولات">
+            <Select id="g-section" value={form.section} onChange={set("section")}>
+              <option value="">غير محدد</option>
+              <option value="men">رجال</option>
+              <option value="women">نساء</option>
+            </Select>
+          </Field>
           <Field label="الفئة" htmlFor="g-group">
             <Select id="g-group" value={form.group_id} onChange={set("group_id")}>
               <option value="">بلا فئة</option>
@@ -190,6 +206,21 @@ function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
     setBusy(false);
   }
 
+  const [pasted, setPasted] = React.useState("");
+  /** كل سطر: الاسم، الجوال، القسم (رجال/نساء) — يُحوَّل إلى CSV ويمر بنفس المعاينة وتطهير التكرارات */
+  async function previewPasted() {
+    const quote = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const rows = pasted.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+      .map((l) => l.split(/[,،\t]/).map((c) => c.trim()))
+      .map(([name = "", phone = "", section = ""]) => [name, phone, section].map(quote).join(","));
+    if (rows.length === 0) return;
+    const text = ["الاسم,الهاتف,القسم", ...rows].join("\n");
+    setCsv(text); setFilename("لصق-أسماء"); setPreview(null); setError(""); setBusy(true);
+    try { setPreview(await api.post(`/api/events/${event.id}/guests/import`, { csv: text, dryRun: true, filename: "لصق-أسماء" })); }
+    catch (e: any) { setError(e.message); }
+    setBusy(false);
+  }
+
   async function confirm() {
     setBusy(true); setError("");
     try {
@@ -203,9 +234,17 @@ function ImportDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
   const labelOf = (s: string) => s === "ok" ? "سليم" : s === "duplicate_existing" ? "مكرر (موجود)" : s === "duplicate_file" ? "مكرر (بالملف)" : "خطأ";
 
   return (
-    <Dialog open onClose={onClose} title="استيراد ضيوف CSV" wide>
+    <Dialog open onClose={onClose} title="إضافة ضيوف بالجملة" wide>
       {node}
       <div className="space-y-4">
+        <div className="space-y-2">
+          <label htmlFor="bulk-paste" className="block text-sm font-semibold">الصق القائمة — سطر لكل ضيف: الاسم، الجوال، القسم</label>
+          <textarea id="bulk-paste" dir="rtl" rows={4} value={pasted} onChange={(e) => setPasted(e.target.value)}
+            placeholder={"محمد العتيبي، +966501234567، رجال\nنورة القحطاني، +966507654321، نساء"}
+            className="w-full rounded-xl border border-navy-950/15 bg-white px-3.5 py-2.5 text-base focus:border-lime-500 focus:outline-none focus:ring-2 focus:ring-lime-400/30 sm:text-sm" />
+          <Button variant="outline" size="sm" onClick={previewPasted} disabled={!pasted.trim() || busy}>معاينة الأسماء</Button>
+        </div>
+        <p className="text-center text-xs font-bold text-muted">أو ارفع ملف CSV (يقبل عمود «القسم»)</p>
         <div className="rounded-xl border border-dashed border-navy-950/20 bg-ivory-soft p-5 text-center">
           <Upload className="mx-auto mb-2 h-6 w-6 text-muted" />
           <p className="mb-1 text-sm font-bold">اختر ملف CSV (UTF-8)</p>

@@ -23,6 +23,7 @@ export interface GuestRow {
   notes: string | null;
   conflict: number;
   import_batch_id: string | null;
+  section: "men" | "women" | null;
   created_at: string;
   updated_at: string;
 }
@@ -43,6 +44,17 @@ export interface GuestInput {
   group_id?: string | null;
   notes?: string;
   locale?: string;
+  /** قسم الضيف: رجال / نساء (اختياري) */
+  section?: "men" | "women" | null;
+}
+
+/** يقبل men/women أو رجال/نساء من الواجهة وملفات CSV */
+export function normalizeSection(v: unknown): "men" | "women" | null {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s) return null;
+  if (["men", "male", "m", "رجال", "رجل", "الرجال"].includes(s)) return "men";
+  if (["women", "female", "f", "w", "نساء", "امرأة", "النساء", "سيدات"].includes(s)) return "women";
+  err("VALIDATION", `قسم غير صالح: ${v} (رجال أو نساء)`);
 }
 
 export async function createGuest(ctx: Ctx, eventId: string, input: GuestInput) {
@@ -83,16 +95,16 @@ async function insertGuest(db: DB, orgId: string, eventId: string, input: GuestI
   }
   const id = newId();
   (await db.run(
-    `INSERT INTO guests (id, event_id, organization_id, inviter_id, original_inviter_id, group_id, name, phone, phone_hash, email, locale, notes, import_batch_id)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO guests (id, event_id, organization_id, inviter_id, original_inviter_id, group_id, name, phone, phone_hash, email, locale, notes, import_batch_id, section)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     id, eventId, orgId, inviterId, inviterId, input.group_id ?? null,
     input.name.trim(), phone, ph, input.email?.trim().toLowerCase() ?? null,
-    input.locale ?? "ar", input.notes ?? null, batchId
+    input.locale ?? "ar", input.notes ?? null, batchId, normalizeSection(input.section)
   ));
   return (await db.get<GuestRow>("SELECT * FROM guests WHERE id = ?", id))!;
 }
 
-export async function listGuests(ctx: Ctx, eventId: string, filters?: { q?: string; group_id?: string; inviter_id?: string }) {
+export async function listGuests(ctx: Ctx, eventId: string, filters?: { q?: string; group_id?: string; inviter_id?: string; section?: string }) {
   const { role, delegation } = (await requireEventAccess(ctx, eventId, ["owner", "manager", "supervisor", "delegate", "receptionist"]));
   const where: string[] = ["g.event_id = ?", "g.organization_id = ?"];
   const params: any[] = [eventId, ctx.actor.orgId];
@@ -103,6 +115,8 @@ export async function listGuests(ctx: Ctx, eventId: string, filters?: { q?: stri
   if (filters?.q) { where.push("(g.name LIKE ? OR g.phone LIKE ?)"); params.push(`%${filters.q}%`, `%${filters.q}%`); }
   if (filters?.group_id) { where.push("g.group_id = ?"); params.push(filters.group_id); }
   if (filters?.inviter_id) { where.push("g.inviter_id = ?"); params.push(filters.inviter_id); }
+  if (filters?.section === "none") where.push("g.section IS NULL");
+  else if (filters?.section) { where.push("g.section = ?"); params.push(normalizeSection(filters.section)); }
   return (await ctx.db.all(
     `SELECT g.*, gr.name group_name, d.invitee_name inviter_name,
       (SELECT status FROM invitations i WHERE i.guest_id = g.id ORDER BY i.created_at DESC LIMIT 1) invitation_status
@@ -132,11 +146,12 @@ export async function updateGuest(ctx: Ctx, guestId: string, input: Partial<Gues
   }
   (await ctx.db.run(
     `UPDATE guests SET name = COALESCE(?, name), phone = ?, phone_hash = ?, email = COALESCE(?, email),
-     group_id = COALESCE(?, group_id), notes = COALESCE(?, notes), updated_at = ? WHERE id = ?`,
+     group_id = COALESCE(?, group_id), notes = COALESCE(?, notes), section = ?, updated_at = ? WHERE id = ?`,
     input.name?.trim() ?? null,
     phone === undefined ? g.phone : phone,
     ph === undefined ? g.phone_hash : ph,
-    input.email ?? null, input.group_id ?? null, input.notes ?? null, nowIso(), guestId
+    input.email ?? null, input.group_id ?? null, input.notes ?? null,
+    input.section === undefined ? g.section ?? null : normalizeSection(input.section), nowIso(), guestId
   ));
   return (await ctx.db.get<GuestRow>("SELECT * FROM guests WHERE id = ?", guestId))!;
 }
@@ -188,7 +203,7 @@ export async function importGuests(
   if (rows.length < 2) err("VALIDATION", "الملف فارغ أو بلا صفوف بيانات");
   const header = rows[0].map((h) => h.trim().toLowerCase());
   const defaultMap: Record<string, string> = {
-    name: "الاسم", phone: "الهاتف", email: "البريد", group: "الفئة", notes: "ملاحظات",
+    name: "الاسم", phone: "الهاتف", email: "البريد", group: "الفئة", notes: "ملاحظات", section: "القسم",
   };
   const mapping = opts.mapping ?? {};
   const colIndex = (field: string): number => {
@@ -199,10 +214,11 @@ export async function importGuests(
       email: ["البريد", "بريد", "email", "الايميل"],
       group: ["الفئة", "فئة", "group", "category", "التصنيف"],
       notes: ["ملاحظات", "notes", "ملاحظة"],
+      section: ["القسم", "قسم", "section", "الجنس", "gender"],
     };
     return header.findIndex((h) => h === wanted || (aliases[field] ?? []).includes(h));
   };
-  const idx = { name: colIndex("name"), phone: colIndex("phone"), email: colIndex("email"), group: colIndex("group"), notes: colIndex("notes") };
+  const idx = { name: colIndex("name"), phone: colIndex("phone"), email: colIndex("email"), group: colIndex("group"), notes: colIndex("notes"), section: colIndex("section") };
   if (idx.name < 0) err("VALIDATION", "عمود الاسم غير موجود في الملف");
 
   const groups = (await ctx.db.all<{ id: string; name: string }>("SELECT id, name FROM guest_groups WHERE event_id = ?", eventId));
@@ -221,6 +237,10 @@ export async function importGuests(
     const groupName = idx.group >= 0 ? (r[idx.group] ?? "").trim() : "";
     const base = { row: i + 1, name, phone: phoneRaw, email, group: groupName };
     if (!name) { results.push({ ...base, status: "error", reason: "الاسم مفقود" }); continue; }
+    if (idx.section >= 0) {
+      try { normalizeSection(r[idx.section]); }
+      catch { results.push({ ...base, status: "error", reason: "القسم يجب أن يكون رجال أو نساء" }); continue; }
+    }
     const phone = phoneRaw ? normalizePhone(phoneRaw) : null;
     if (phoneRaw && !phone) { results.push({ ...base, status: "error", reason: "رقم هاتف غير صالح (صيغة دولية مطلوبة)" }); continue; }
     const ph = phone ? phoneHash(phone) : null;
@@ -255,6 +275,7 @@ export async function importGuests(
           name: r.name, phone: r.phone || undefined, email: r.email || undefined,
           group_id: grp?.id ?? null,
           notes: idx.notes >= 0 ? (rows[r.row - 1][idx.notes] ?? "") : undefined,
+          section: idx.section >= 0 ? normalizeSection(rows[r.row - 1][idx.section]) : null,
         }, inviterId, batchId, ctx.actor.user.id));
         inserted++;
       } catch (e: any) {
@@ -281,8 +302,8 @@ export async function importGuests(
 export async function exportGuestsCsv(ctx: Ctx, eventId: string): Promise<string> {
   const guests = (await listGuests(ctx, eventId));
   return toCsv(
-    ["الاسم", "الهاتف", "البريد", "الفئة", "الداعي", "حالة الدعوة", "تاريخ الإضافة"],
-    guests.map((g: any) => [g.name, g.phone, g.email, g.group_name, g.inviter_name ?? "المالك", g.invitation_status ?? "", g.created_at])
+    ["الاسم", "الهاتف", "البريد", "الفئة", "القسم", "الداعي", "حالة الدعوة", "تاريخ الإضافة"],
+    guests.map((g: any) => [g.name, g.phone, g.email, g.group_name, g.section === "men" ? "رجال" : g.section === "women" ? "نساء" : "", g.inviter_name ?? "المالك", g.invitation_status ?? "", g.created_at])
   );
 }
 

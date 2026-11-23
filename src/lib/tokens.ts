@@ -46,3 +46,24 @@ export function publicUrl(): string {
 export function invitationUrl(rawToken: string): string {
   return `${publicUrl()}/i/${rawToken}`;
 }
+
+const BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+/** رمز مختصر عشوائي (8 خانات ≈ 47 بت) — للرابط المرسل عبر واتساب فقط، لا يُستخدم للدخول أو QR */
+export function newShortCode(length = 8): string {
+  const bytes = crypto.randomBytes(length * 2);
+  let out = "";
+  for (let i = 0; i < bytes.length && out.length < length; i++) {
+    if (bytes[i] < 248) out += BASE62[bytes[i] % 62]; // رفض القيم المنحازة
+  }
+  return out.length === length ? out : newShortCode(length);
+}
+
+export function isShortCode(s: string): boolean {
+  return /^[0-9A-Za-z]{8}$/.test(s);
+}
+
+/** الرابط المختصر للمشاركة: <النطاق>/d/<رمز> */
+export function shortInvitationUrl(code: string): string {
+  return `${publicUrl()}/d/${code}`;
+}

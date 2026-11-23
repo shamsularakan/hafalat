@@ -1,5 +1,6 @@
 /** قوالب التخطيط التلقائية حسب نوع المناسبة — تُبذّر في planning_templates */
 import type { DB } from "./db";
+import { SUPPLY_CATEGORIES, WEDDING_TASKS, WEDDING_RUN, RESERVE_CATEGORY_NAME } from "./supplies-catalog";
 
 export interface PlanningTemplate {
   event_type: string;
@@ -7,7 +8,18 @@ export interface PlanningTemplate {
   tasks: { title: string; category: string; priority?: "low" | "medium" | "high"; offset?: number }[];
   categories: { name: string; percent: number }[];
   checklist: string[];
-  timeline: { phase: "preparation" | "event_day" | "after"; title: string; offset: number }[];
+  timeline: TimelineTpl[];
+  version?: number;
+}
+
+/** offset بالأيام من تاريخ المناسبة؛ minutes (اختياري) بالدقائق من بداية الاستقبال يوم المناسبة */
+export interface TimelineTpl {
+  phase: "preparation" | "event_day" | "after";
+  title: string;
+  offset: number;
+  minutes?: number;
+  owner?: string;
+  guests?: boolean;
 }
 
 const T = (
@@ -24,12 +36,38 @@ const T = (
   timeline: timeline.map(([phase, title, offset]) => ({ phase, title, offset })),
 });
 
+/** خطوات يوم الزفاف التي تظهر للضيوف في برنامج الدعوة */
+const GUEST_FACING_MINUTES = new Set([0, 60, 135, 195, 225]);
+const HIGH_PRIORITY_DAYS = new Set([300, 240, 210, 60, 42, 7]);
+
+/** قالب الزواج الكامل: 15 فئة (90%) + احتياطي 10%، 22 مهمة، 15 خطوة ليوم المناسبة */
+const WEDDING_TEMPLATE: PlanningTemplate = {
+  event_type: "wedding",
+  name_ar: "الزواج والزفاف",
+  version: 2,
+  categories: [
+    ...SUPPLY_CATEGORIES.map((c) => ({ name: c.name, percent: Math.round(c.pct * 0.9 * 10) / 10 })),
+    { name: RESERVE_CATEGORY_NAME, percent: 10 },
+  ],
+  tasks: WEDDING_TASKS.map(([days, title, owner]) => ({
+    title, category: owner, offset: -days, priority: HIGH_PRIORITY_DAYS.has(days) ? "high" as const : "medium" as const,
+  })),
+  checklist: ["القاعة", "الكوشة", "الملابس", "الضيافة", "المصور", "الدعوات", "الهدايا", "أكياس العبايات والترقيم", "الإكراميات والمستلزمات الاحتياطية"],
+  timeline: [
+    { phase: "preparation", title: "بدء التجهيز وحجز القاعة", offset: -300 },
+    { phase: "preparation", title: "إرسال الدعوات", offset: -85 },
+    { phase: "preparation", title: "تأكيد العدد النهائي", offset: -42 },
+    { phase: "preparation", title: "تسليم جدول اليوم للموردين", offset: -7 },
+    ...WEDDING_RUN.map(([minutes, title, owner]): TimelineTpl => ({
+      phase: "event_day", title, offset: 0, minutes, owner, guests: GUEST_FACING_MINUTES.has(minutes),
+    })),
+    { phase: "after", title: "تسوية الحسابات وتقييم الموردين", offset: 3 },
+    { phase: "after", title: "أرشفة العقود والصور", offset: 14 },
+  ],
+};
+
 export const PLANNING_TEMPLATES: PlanningTemplate[] = [
-  T("wedding", "الزواج والزفاف",
-    [["المكان والديكور", 30], ["الضيافة", 25], ["التصوير", 15], ["الملابس والزينة", 15], ["الدعوات", 5], ["احتياطي", 10]],
-    [["حجز القاعة وتأكيد العقد", "المكان", -120, "high"], ["تصميم الدعوة واعتمادها", "الدعوات", -60, "high"], ["تجهيز قائمة المدعوين", "الدعوات", -45, "high"], ["حجز المصور", "التصوير", -90], ["تنسيق الضيافة", "الضيافة", -30], ["تجربة الديكور والكوشة", "الديكور", -7], ["تأكيد عدد الحضور النهائي", "الضيافة", -3, "high"], ["تسليم بطاقات الدخول للمشرفين", "اليوم", -1, "high"]],
-    ["القاعة", "الكوشة", "الملابس", "الضيافة", "المصور", "الدعوات", "الهدايا", "الشهادة"],
-    [["preparation", "بدء التجهيز", -120], ["preparation", "إرسال الدعوات", -45], ["preparation", "التأكيدات النهائية", -3], ["event_day", "الاستقبال والدخول", 0], ["after", "تقرير المناسبة", 2]]),
+  WEDDING_TEMPLATE,
 
   T("engagement", "الخطوبة والملكة",
     [["المكان", 25], ["الضيافة", 30], ["الزينة", 15], ["الهدايا", 15], ["الدعوات", 5], ["احتياطي", 10]],
@@ -78,9 +116,13 @@ export async function seedPlanningTemplates(db: DB) {
   for (const t of PLANNING_TEMPLATES) {
     (await db.run(
       `INSERT INTO planning_templates (id, event_type, name_ar, tasks_json, categories_json, checklist_json, timeline_json, version)
-       VALUES (?,?,?,?,?,?,?,1) ON CONFLICT(event_type) DO NOTHING`,
+       VALUES (?,?,?,?,?,?,?,?)
+       ON CONFLICT(event_type) DO UPDATE SET name_ar = excluded.name_ar, tasks_json = excluded.tasks_json,
+         categories_json = excluded.categories_json, checklist_json = excluded.checklist_json,
+         timeline_json = excluded.timeline_json, version = excluded.version
+       WHERE planning_templates.version < excluded.version`,
       `tpl-plan-${t.event_type}`, t.event_type, t.name_ar,
-      JSON.stringify(t.tasks), JSON.stringify(t.categories), JSON.stringify(t.checklist), JSON.stringify(t.timeline)
+      JSON.stringify(t.tasks), JSON.stringify(t.categories), JSON.stringify(t.checklist), JSON.stringify(t.timeline), t.version ?? 1
     ));
   }
 }

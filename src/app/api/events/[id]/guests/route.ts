@@ -11,6 +11,7 @@ export const GET = route(async (req: Request, { params }: P) => {
   return ok((await listGuests(ctx, id, {
     q: url.searchParams.get("q") ?? undefined,
     group_id: url.searchParams.get("group_id") ?? undefined,
+    section: url.searchParams.get("section") ?? undefined,
     inviter_id: url.searchParams.get("inviter_id") ?? undefined,
   })));
 });

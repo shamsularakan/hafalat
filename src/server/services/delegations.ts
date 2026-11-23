@@ -140,7 +140,7 @@ export async function listDelegations(ctx: Ctx, eventId: string) {
   const rows = (await ctx.db.all<DelegationRow>(
     "SELECT * FROM delegations WHERE event_id = ? ORDER BY created_at", eventId
   ));
-  return rows.map(async (d) => (await withStats(ctx, d)));
+  return Promise.all(rows.map(async (d) => (await withStats(ctx, d))));
 }
 
 async function withStats(ctx: Ctx, d: DelegationRow) {

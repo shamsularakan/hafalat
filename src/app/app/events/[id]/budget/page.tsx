@@ -1,13 +1,14 @@
 "use client";
 import * as React from "react";
-import { Plus, Wallet, ReceiptText, Trash2, Pencil } from "lucide-react";
+import { Plus, Wallet, ReceiptText, Trash2, Pencil, AlertTriangle, PackageCheck } from "lucide-react";
+import Link from "next/link";
 import { api } from "@/lib/client";
 import { useEvent } from "@/components/event-context";
 import { formatNumber, formatDateShort } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, Stat } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input, Field, Select } from "@/components/ui/input";
+import { Input, Field, Select, Switch } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { Table, TH, TD, TR } from "@/components/ui/table";
 import { Loading, ErrorState, useToast } from "@/components/ui/feedback";
@@ -53,6 +54,23 @@ export default function BudgetPage() {
         و«المحجوز» = {formatNumber(s.committed)} ر.س. لا تُجمع هذه الأرقام مع بعضها لتجنب العد المزدوج.
       </Card>
 
+      {(() => {
+        const over = s.categories.filter((c: any) => Number(c.planned_amount) > 0 && Number(c.committed) > Number(c.planned_amount));
+        return over.length > 0 ? (
+          <Card className="border-danger/25 bg-danger/5" role="alert">
+            <p className="flex items-center gap-2 text-sm font-bold text-danger"><AlertTriangle className="h-4.5 w-4.5" /> تجاوز في {formatNumber(over.length)} من فئات الميزانية</p>
+            <ul className="mt-2 space-y-1 text-sm">
+              {over.map((c: any) => (
+                <li key={c.id} className="flex flex-wrap justify-between gap-2">
+                  <span className="font-semibold">{c.name}</span>
+                  <span className="tabular-nums text-danger">المحجوز {formatNumber(c.committed)} من {formatNumber(c.planned_amount)} ر.س (+{formatNumber(Number(c.committed) - Number(c.planned_amount))})</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ) : null;
+      })()}
+
       <div className="grid gap-5 lg:grid-cols-2">
         <Card className="p-0">
           <CardHeader className="p-4 pb-2">
@@ -65,7 +83,7 @@ export default function BudgetPage() {
                 <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{c.name}</p>
                   <p className="text-xs text-muted">المخطط {formatNumber(c.planned_amount)} · المحجوز {formatNumber(c.committed)}</p>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-navy-950/8">
-                    <div className="h-full rounded-full bg-lime-400" style={{ width: `${c.planned_amount > 0 ? Math.min(100, (c.spent / c.planned_amount) * 100) : 0}%` }} />
+                    <div className={Number(c.committed) > Number(c.planned_amount) && Number(c.planned_amount) > 0 ? "h-full rounded-full bg-danger" : "h-full rounded-full bg-lime-400"} style={{ width: `${c.planned_amount > 0 ? Math.min(100, (Math.max(c.spent, c.committed) / c.planned_amount) * 100) : 0}%` }} />
                   </div>
                 </div>
                 <div className="text-left"><p className="text-sm font-extrabold tabular-nums">{formatNumber(c.spent)}</p>
@@ -83,6 +101,7 @@ export default function BudgetPage() {
             <p className="flex justify-between border-t border-navy-950/8 pt-2"><span className="font-bold">التقدير</span><b className="text-lg tabular-nums text-navy-950">{formatNumber(s.hospitality.estimate)} ر.س</b></p>
           </div>
           <p className="mt-3 text-xs text-muted">عدّل تكلفة الشخص من «إعدادات الخطة» في مركز التخطيط.</p>
+          <Link href={`/app/events/${event.id}/supplies`} className="mt-4 block"><Button variant="outline" size="sm" className="w-full"><PackageCheck className="h-4 w-4" /> احسب المستلزمات والكميات</Button></Link>
         </Card>
       </div>
 
@@ -100,7 +119,7 @@ export default function BudgetPage() {
                   <TD className="font-semibold">{e.title}</TD>
                   <TD className="text-xs text-muted">{e.category_name ?? "—"}</TD>
                   <TD className="text-xs text-muted">{e.vendor_name ?? "—"}</TD>
-                  <TD className="tabular-nums">{formatNumber(e.amount)}</TD>
+                  <TD className="tabular-nums">{formatNumber(e.amount)}{Number(e.vat_amount) > 0 && <span className="block text-xs text-muted">منها ضريبة {formatNumber(e.vat_amount)}</span>}</TD>
                   <TD><Badge tone={e.status === "paid" ? "success" : e.status === "cancelled" ? "danger" : "warning"}>{e.status === "paid" ? "مسدود" : e.status === "cancelled" ? "ملغي" : "مخطط"}</Badge></TD>
                   <TD className="text-xs text-muted">{e.expense_date ? formatDateShort(e.expense_date) : "—"}</TD>
                   <TD><div className="flex gap-1"><Button variant="ghost" size="icon" onClick={() => setEditing(e)}><Pencil className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon" className="text-danger" onClick={() => remove(e.id)}><Trash2 className="h-3.5 w-3.5" /></Button></div></TD>
@@ -142,6 +161,10 @@ function ExpenseDialog({ data, categories, vendors, onClose, onSaved }: any) {
         <Field label="المورد"><Select value={form.vendor_id} onChange={(e) => set("vendor_id", e.target.value)}><option value="">بلا مورد</option>{vendors.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}</Select></Field>
         <Field label="التاريخ"><Input type="date" dir="ltr" value={form.expense_date} onChange={(e) => set("expense_date", e.target.value)} /></Field>
         <Field label="الحالة"><Select value={form.status} onChange={(e) => set("status", e.target.value)}><option value="planned">مخطط</option><option value="paid">مسدود</option><option value="cancelled">ملغي</option></Select></Field>
+        <div className="sm:col-span-2">
+          <Switch checked={!!form.add_vat} onChange={(v) => set("add_vat", v)} label="المبلغ قبل الضريبة — أضف ضريبة القيمة المضافة إليه" />
+          <p className="text-xs text-muted">{form.add_vat ? `سيُحفظ ${formatNumber(Math.round(Number(form.amount || 0) * 115) / 100)} ر.س شاملًا ضريبة 15%` : Number(data.vat_amount) > 0 ? `يشمل ضريبة ${formatNumber(data.vat_amount)} ر.س` : "سجّل الضريبة ضمن التكلفة كي لا تُنسى"}</p>
+        </div>
       </div>
       <div className="mt-4"><Field label="ملاحظات"><Input value={form.notes} onChange={(e) => set("notes", e.target.value)} /></Field></div>
       <div className="mt-4 flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>إلغاء</Button><Button onClick={save} loading={busy}>حفظ</Button></div>

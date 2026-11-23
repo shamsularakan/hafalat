@@ -42,6 +42,11 @@ const COLOR_FIELDS: [keyof EngineSchema["palette"], string][] = [
   ["accent", "الزخرفة"], ["text", "النص"], ["muted", "النص الثانوي"],
 ];
 
+const LIB_CATS: Record<string, string> = {
+  "": "الكل", wedding: "زواج", engagement: "خطوبة", graduation: "تخرج", family: "عائلي",
+  conference: "مؤتمر", opening: "افتتاح", meeting: "اجتماع", festival: "مهرجان",
+};
+
 export default function DesignPage() {
   const { event } = useEvent();
   const { show, node } = useToast();
@@ -215,7 +220,7 @@ export default function DesignPage() {
               {["", "wedding", "engagement", "graduation", "family", "conference", "opening", "meeting", "festival"].map((c) => (
                 <button key={c} onClick={() => setLibCat(c)}
                   className={cn("cursor-pointer rounded-full px-3 py-1 text-[11px] font-bold transition-all", libCat === c ? "bg-navy-950 text-cream-50" : "bg-ivory-soft text-muted hover:bg-lime-100")}>
-                  {c || "الكل"}
+                  {LIB_CATS[c] ?? c}
                 </button>
               ))}
             </div>

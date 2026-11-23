@@ -12,6 +12,9 @@ import { Tabs } from "@/components/ui/tabs";
 import { Dialog } from "@/components/ui/dialog";
 import { Table, TH, TD, TR } from "@/components/ui/table";
 import { Loading, ErrorState, useToast } from "@/components/ui/feedback";
+import { VendorCatalog } from "@/components/vendor-catalog";
+import { VendorDirectory } from "@/components/vendor-directory";
+import { Stars } from "@/components/planning-widgets";
 
 const VSTATUS: Record<string, string> = { potential: "محتمل", contacted: "تم التواصل", contracted: "متعاقد", done: "منفذ" };
 const ATYPE: Record<string, string> = { contract: "عقد", quote: "عرض سعر", invoice: "فاتورة", photo: "صورة", other: "أخرى" };
@@ -48,6 +51,8 @@ export default function VendorsPage() {
       {node}
       <Tabs active={tab} onChange={setTab} tabs={[
         { id: "vendors", label: "الموردون والخدمات" },
+        { id: "directory", label: "دليل الموردين" },
+        { id: "catalog", label: "منتجات الموردين" },
         { id: "attachments", label: "العقود والمرفقات" },
         { id: "checklists", label: "قوائم التجهيز" },
       ]} />
@@ -57,7 +62,7 @@ export default function VendorsPage() {
           <CardHeader className="p-4 pb-2"><CardTitle className="text-sm">الموردون</CardTitle><Button size="sm" onClick={() => setEditing({})}><Plus className="h-4 w-4" /> مورد جديد</Button></CardHeader>
           {!vendors ? <Loading /> : vendors.length === 0 ? <p className="p-6 text-center text-sm text-muted">لا موردون بعد.</p> : (
             <Table>
-              <thead><tr><TH>المورد</TH><TH>الفئة</TH><TH>التواصل</TH><TH>الحالة</TH><TH>مصروفات</TH><TH /></tr></thead>
+              <thead><tr><TH>المورد</TH><TH>الفئة</TH><TH>التواصل</TH><TH>الحالة</TH><TH>التقييم</TH><TH>مصروفات</TH><TH /></tr></thead>
               <tbody>
                 {vendors.map((v) => (
                   <TR key={v.id}>
@@ -65,6 +70,7 @@ export default function VendorsPage() {
                     <TD className="text-xs text-muted">{v.category}</TD>
                     <TD className="text-xs text-muted" dir="ltr">{v.phone ?? v.email ?? "—"}</TD>
                     <TD><Badge tone={v.status === "contracted" ? "success" : v.status === "done" ? "lime" : "neutral"}>{VSTATUS[v.status] ?? v.status}</Badge></TD>
+                    <TD>{v.rating ? <Stars value={v.rating} label={`تقييم ${v.name}`} /> : <span className="text-xs text-muted">—</span>}</TD>
                     <TD className="tabular-nums">{v.expenses}</TD>
                     <TD><div className="flex gap-1"><Button variant="ghost" size="icon" onClick={() => setEditing(v)}><Pencil className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon" className="text-danger" onClick={() => removeVendor(v.id)}><Trash2 className="h-3.5 w-3.5" /></Button></div></TD>
                   </TR>
@@ -74,6 +80,9 @@ export default function VendorsPage() {
           )}
         </Card>
       )}
+
+      {tab === "directory" && <VendorDirectory onLinked={load} />}
+      {tab === "catalog" && <VendorCatalog />}
 
       {tab === "attachments" && (
         <Card className="p-0">

@@ -9,7 +9,24 @@ import {
   assertDelegationUsable, delegationPerms, requireEventAccess,
   type DelegationRow,
 } from "@/lib/permissions";
-import { deriveToken, hashToken, invitationUrl, newNonce } from "@/lib/tokens";
+import type { DB } from "@/lib/db";
+import { deriveToken, hashToken, invitationUrl, newNonce, newShortCode, shortInvitationUrl } from "@/lib/tokens";
+
+/** يضمن رمزًا مختصرًا للدعوة (rotate = رمز جديد يُبطل الرابط المختصر القديم عند إعادة الإصدار) */
+export async function ensureShortCode(db: DB, invitationId: string, rotate = false): Promise<string> {
+  if (!rotate) {
+    const cur = await db.get<{ short_code: string | null }>("SELECT short_code FROM invitations WHERE id = ?", invitationId);
+    if (cur?.short_code) return cur.short_code;
+  }
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = newShortCode();
+    try {
+      await db.run("UPDATE invitations SET short_code = ? WHERE id = ?", code, invitationId);
+      return code;
+    } catch { /* تصادم نادر مع رمز موجود — نعيد المحاولة */ }
+  }
+  throw new Error("تعذر توليد رابط مختصر");
+}
 import { writeAudit } from "@/lib/audit";
 import { reservedUnits } from "./events";
 import { getGuestScoped } from "./guests";
@@ -163,10 +180,12 @@ export async function issueInvitation(ctx: Ctx, eventId: string, input: IssueInp
       ));
     }
 
+    const shortCode = await ensureShortCode(ctx.db, id, true);
     const result = {
       invitation_id: id,
       token: rawToken,
       url: invitationUrl(rawToken),
+      short_url: shortInvitationUrl(shortCode),
       persons_reserved: reserveUnits,
       companions_allowed: companionsAllowed,
     };
@@ -250,10 +269,15 @@ export async function listInvitations(ctx: Ctx, eventId: string, filters?: { sta
      WHERE ${where.join(" AND ")} ORDER BY i.created_at DESC`,
     ...params
   ));
+  // الدعوات القديمة بلا رمز مختصر تحصل عليه عند أول عرض
+  for (const r of rows as any[]) {
+    if (!r.short_code && !["draft", "cancelled", "expired"].includes(r.status)) r.short_code = await ensureShortCode(ctx.db, r.id);
+  }
   return rows.map((r: any) => ({
     ...r,
     token: deriveToken(r.id, r.token_nonce),
     url: invitationUrl(deriveToken(r.id, r.token_nonce)),
+    short_url: r.short_code ? shortInvitationUrl(r.short_code) : null,
     token_hash: undefined,
   }));
 }
@@ -267,7 +291,8 @@ export async function getInvitation(ctx: Ctx, invitationId: string) {
     err("FORBIDDEN");
   const guest = (await ctx.db.get("SELECT id, name, phone, email FROM guests WHERE id = ?", inv.guest_id));
   const rawToken = deriveToken(inv.id, inv.token_nonce);
-  return { ...inv, token_hash: undefined, guest, token: rawToken, url: invitationUrl(rawToken) };
+  const shortCode = await ensureShortCode(ctx.db, inv.id);
+  return { ...inv, token_hash: undefined, guest, token: rawToken, url: invitationUrl(rawToken), short_url: shortInvitationUrl(shortCode) };
 }
 
 /** تسجيل إرسال يدوي (واتساب/نسخ رابط) مع منع التكرار غير المقصود */
