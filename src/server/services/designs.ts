@@ -23,6 +23,8 @@ export interface DesignSchema {
     program?: string; dress_code?: string; transport?: string; accommodation?: string;
     quote?: string; photo_url?: string; rsvp_phone?: string; monogram?: string;
     groom?: string; bride?: string; invitation_line?: string;
+    /** قالب الصفحة الكاملة: صورة القاعة، معلومات الضيوف (سطر لكل معلومة)، والعبارة الختامية */
+    venue_photo_url?: string; guest_notes?: string; closing_line?: string; wishes_enabled?: boolean;
   };
   logo_asset_id?: string | null;
   background_asset_id?: string | null;

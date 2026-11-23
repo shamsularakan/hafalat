@@ -42,6 +42,8 @@ export interface EngineSchema {
     program?: string; dress_code?: string; transport?: string; accommodation?: string;
     quote?: string; photo_url?: string; rsvp_phone?: string; monogram?: string;
     groom?: string; bride?: string; invitation_line?: string;
+    /** قالب الصفحة الكاملة: صورة القاعة، معلومات الضيوف (سطر لكل معلومة)، والعبارة الختامية */
+    venue_photo_url?: string; guest_notes?: string; closing_line?: string; wishes_enabled?: boolean;
   };
   logo_asset_id?: string | null;
   background_asset_id?: string | null;
@@ -59,6 +61,7 @@ export const ALLOWED_VARS = [
   "event.program", "event.dress_code", "event.transport", "event.accommodation",
   "event.quote", "event.photo", "event.rsvp_deadline", "event.rsvp_phone",
   "event.monogram", "event.groom", "event.bride", "event.invitation_line",
+  "guest.title", "event.venue_photo", "event.guest_notes", "event.closing_line",
 ] as const;
 
 function clean(v: string | number): string {

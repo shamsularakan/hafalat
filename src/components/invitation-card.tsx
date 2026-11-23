@@ -6,6 +6,7 @@ import { formatDualDate } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { substitute, layerText, safeImageUrl, type EngineSchema, type Layer, type Scene, type TemplateVars } from "@/lib/invitation-engine";
 import { EditorialInvitation } from "./editorial-invitation";
+import { ScrollInvitation } from "./scroll-invitation";
 
 export interface CardEvent {
   title: string; type: string; host_name: string | null; description?: string | null;
@@ -64,6 +65,12 @@ export function InvitationCard({
   step?: number;
 }) {
   const reduced = useReducedMotion();
+  if (schema.template_style === "scroll") {
+    return (
+      <ScrollInvitation compact={compact} schema={schema} vars={vars ?? {}} guestName={guestName}
+        event={{ title: event.title, starts_at: event.starts_at, timezone: event.timezone, venue_name: event.venue_name ?? null, venue_address: (event as any).venue_address ?? null, map_url: (event as any).map_url ?? null }} />
+    );
+  }
   if (schema.template_style === "editorial") {
     return (
       <EditorialInvitation

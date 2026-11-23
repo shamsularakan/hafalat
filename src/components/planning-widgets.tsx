@@ -2,7 +2,7 @@
 /** عناصر تشغيل المناسبة: التنبيهات الأسبوعية، تقييم الموردين، وجدول اليوم المعتمد للطباعة والإرسال */
 import * as React from "react";
 import Link from "next/link";
-import { AlertTriangle, BellRing, Info, ChevronLeft, Star, Printer, Share2, Phone, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, BellRing, Info, ChevronLeft, Star, Printer, Share2, Phone, CheckCircle2, Heart, EyeOff, Eye } from "lucide-react";
 import { api } from "@/lib/client";
 import { useEvent } from "@/components/event-context";
 import { formatDateShort, cn } from "@/lib/utils";
@@ -182,5 +182,41 @@ export function DaySheetDialog({ onClose }: { onClose: () => void }) {
         </div>
       )}
     </Dialog>
+  );
+}
+
+/** «اترك بصمتك الجميلة»: تهاني الضيوف لأصحاب المناسبة، مع إخفاء أي تهنئة غير مناسبة */
+export function WishesCard() {
+  const { event } = useEvent();
+  const { show, node } = useToast();
+  const [list, setList] = React.useState<any[] | null>(null);
+  const load = React.useCallback(() => { api.get<any[]>(`/api/events/${event.id}/wishes`).then(setList).catch(() => setList([])); }, [event.id]);
+  React.useEffect(load, [load]);
+  if (!list || list.length === 0) return null;
+  async function toggle(w: any) {
+    try { await api.patch(`/api/events/${event.id}/wishes/${w.id}`, { hidden: !w.hidden }); load(); }
+    catch (e: any) { show(e.message, "error"); }
+  }
+  return (
+    <Card>
+      {node}
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-sm"><Heart className="h-4.5 w-4.5 fill-current text-danger" /> تهاني الضيوف</CardTitle>
+        <Badge tone="lime">{list.length}</Badge>
+      </CardHeader>
+      <ul className="max-h-96 space-y-2 overflow-y-auto">
+        {list.map((w) => (
+          <li key={w.id} className={cn("rounded-xl border border-navy-950/8 p-3", w.hidden && "opacity-50")}>
+            <p className="text-sm leading-7">{w.message}</p>
+            <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted">
+              <span>{[w.guest_title, w.guest_name].filter(Boolean).join(" ")}{w.answer === "declined" ? " · اعتذر عن الحضور" : ""}</span>
+              <Button variant="ghost" size="sm" onClick={() => toggle(w)} aria-label={w.hidden ? "إظهار التهنئة" : "إخفاء التهنئة"}>
+                {w.hidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />} {w.hidden ? "إظهار" : "إخفاء"}
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }

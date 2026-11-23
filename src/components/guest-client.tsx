@@ -7,6 +7,7 @@ import { InvitationCard, AudioPlayer, CalendarButton } from "@/components/invita
 import { BUILTIN_TEMPLATES } from "@/lib/seeds";
 import { defaultScenes, type EngineSchema, type Scene } from "@/lib/invitation-engine";
 import { cn } from "@/lib/utils";
+import { ScrollInvitation } from "@/components/scroll-invitation";
 
 const STEP_LABELS = ["الغلاف", "الترحيب", "التفاصيل", "الحضور", "التذكرة"];
 
@@ -26,6 +27,27 @@ export function GuestClient({ payload: initial, token }: { payload: GuestPagePay
   const scenes: Scene[] = React.useMemo(() => defaultScenes(schema), [schema]);
   const scene = scenes[step] ?? scenes[0];
   const confirmed = ["confirmed", "checked_in"].includes(payload.status);
+
+  // الدعوة الكاملة: صفحة واحدة شخصية لكل مدعو
+  if (schema.template_style === "scroll") {
+    return (
+      <div className="min-h-screen py-0 sm:py-8" style={{ background: p.card }}>
+        <ScrollInvitation
+          schema={schema}
+          event={payload.event as any}
+          vars={payload.vars}
+          guestName={payload.guest_name}
+          guestTitle={payload.guest_title}
+          guest={{
+            token, status: payload.status, companions_allowed: payload.companions_allowed, accepts_rsvp: payload.accepts_rsvp,
+            rsvp: payload.rsvp, calendar_url: payload.calendar_url, audio_url: payload.audio_url,
+            wish: payload.wish, wishes_open: payload.wishes_open,
+          }}
+        />
+        <p className="py-6 text-center text-[11px]" style={{ color: "rgba(251,248,245,.75)" }}>ليلتنا | LAYLATNA · دعوة خاصة لا تُعرض فيها قائمة الضيوف</p>
+      </div>
+    );
+  }
 
   async function submitRsvp() {
     if (!answer) return;

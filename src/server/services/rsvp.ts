@@ -29,6 +29,10 @@ export interface GuestPagePayload {
   qr_url: string;
   calendar_url: string;
   accepts_rsvp: boolean;
+  guest_title: string | null;
+  /** تهنئة الضيف إن كتبها، وهل صندوق التهنئة مفتوح (من يوم المناسبة) */
+  wish: string | null;
+  wishes_open: boolean;
   vars: TemplateVars;
   scenes: any[] | null;
 }
@@ -53,7 +57,7 @@ export async function getGuestPage(db: DB, rawToken: string): Promise<GuestPageP
   const event = (await db.get<any>("SELECT * FROM events WHERE id = ?", inv.event_id))!;
   if (["cancelled", "archived"].includes(event.status))
     err("EVENT_CLOSED", "المناسبة لم تعد متاحة");
-  const guest = (await db.get<{ name: string; group_id: string | null }>("SELECT name, group_id FROM guests WHERE id = ?", inv.guest_id))!;
+  const guest = (await db.get<{ name: string; group_id: string | null; title: string | null }>("SELECT name, group_id, title FROM guests WHERE id = ?", inv.guest_id))!;
   const groupName = guest.group_id
     ? ((await db.get<{ name: string }>("SELECT name FROM guest_groups WHERE id = ?", guest.group_id))?.name ?? "")
     : "";
@@ -80,8 +84,17 @@ export async function getGuestPage(db: DB, rawToken: string): Promise<GuestPageP
     ? photoRaw
     : photoRaw ? `/api/i/${rawToken}/asset/${photoRaw}` : "";
 
+  const venuePhotoRaw = String(d.venue_photo_url ?? "").trim();
+  const venuePhoto = safeImageUrl(venuePhotoRaw)
+    ? venuePhotoRaw
+    : venuePhotoRaw ? `/api/i/${rawToken}/asset/${venuePhotoRaw}` : "";
+
   const vars: TemplateVars = {
     "guest.name": guest.name,
+    "guest.title": guest.title ?? "",
+    "event.venue_photo": venuePhoto,
+    "event.guest_notes": d.guest_notes ?? "",
+    "event.closing_line": d.closing_line ?? "",
     "event.name": event.title,
     "event.date": dual ? (dual.hijri || dual.gregorian) : "",
     "event.time": dual?.time ?? "",
@@ -119,9 +132,14 @@ export async function getGuestPage(db: DB, rawToken: string): Promise<GuestPageP
     (!event.rsvp_deadline || event.rsvp_deadline > nowIso()) &&
     !["checked_in"].includes(inv.status);
 
+  const wish = (await db.get<{ message: string }>("SELECT message FROM guest_wishes WHERE invitation_id = ?", inv.id));
+
   return {
     invitation_id: inv.id,
     guest_name: guest.name,
+    guest_title: guest.title ?? null,
+    wish: wish?.message ?? null,
+    wishes_open: wishesOpen(event),
     status: inv.status,
     companions_allowed: inv.companions_allowed,
     persons_reserved: inv.persons_reserved,
@@ -178,4 +196,36 @@ export async function submitRsvp(
     (await db.run("UPDATE invitations SET status = ? WHERE id = ?", input.answer, inv.id));
     return { ok: true, answer: input.answer, persons_confirmed: persons };
   }));
+}
+
+/* ===== «اترك بصمتك الجميلة»: التهاني ===== */
+
+/** اليوم المحلي بتوقيت المناسبة */
+function dayIn(iso: string, tz: string) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: tz || "Asia/Riyadh", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+}
+
+/** صندوق التهنئة يُفتح يوم المناسبة (بتوقيتها) للحاضرين وغير الحاضرين، ويبقى مفتوحًا بعدها */
+export function wishesOpen(event: { starts_at: string | null; timezone: string; status: string }, now = Date.now()) {
+  if (["cancelled", "archived"].includes(event.status)) return false;
+  if (!event.starts_at) return false;
+  return dayIn(new Date(now).toISOString(), event.timezone) >= dayIn(event.starts_at, event.timezone);
+}
+
+export async function submitWish(db: DB, rawToken: string, input: { message?: string }, now = Date.now()) {
+  const inv = (await findInvitationByToken(db, rawToken));
+  const event = (await db.get<any>("SELECT id, organization_id, starts_at, timezone, status FROM events WHERE id = ?", inv.event_id))!;
+  if (!wishesOpen(event, now)) err("CONFLICT", "تُفتح التهنئة يوم المناسبة بمشيئة الله");
+  const message = String(input.message ?? "").replace(/<[^>]*>/g, "").trim().slice(0, 500);
+  if (message.length < 2) err("VALIDATION", "اكتب تهنئتك أولًا");
+  const existing = (await db.get<{ id: string }>("SELECT id FROM guest_wishes WHERE invitation_id = ?", inv.id));
+  if (existing) {
+    (await db.run("UPDATE guest_wishes SET message = ?, updated_at = ? WHERE id = ?", message, nowIso(), existing.id));
+  } else {
+    (await db.run(
+      "INSERT INTO guest_wishes (id, event_id, organization_id, invitation_id, message) VALUES (?,?,?,?,?)",
+      newId(), event.id, event.organization_id, inv.id, message
+    ));
+  }
+  return { ok: true, message };
 }

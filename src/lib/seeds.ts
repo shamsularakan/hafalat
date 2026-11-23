@@ -102,6 +102,25 @@ export const BUILTIN_TEMPLATES: { id: string; name_ar: string; style: string; ca
       ],
     },
   },
+  {
+    // الدعوة الكاملة بصفحة واحدة — مطابقة لـ«قالب الدعوة» المعتمد (زيتوني/كريمي/ذهبي)
+    id: "tpl-laylatna-full", name_ar: "ليلتنا — الدعوة الكاملة", style: "scroll", category: "wedding",
+    schema: {
+      template_style: "scroll",
+      palette: { bg: "#FBF8F5", card: "#5F6553", primary: "#2E2A26", accent: "#C9A86A", text: "#2E2A26", muted: "#6B665C" },
+      motion: "fade",
+      cover: { title: "حفل زواجي", subtitle: "دعوة خاصة", hosts: "", ornament: "✦" },
+      details: {
+        message: "يسرّنا ويشرّفنا حضوركم ومشاركتكم فرحتنا",
+        venue_label: "القاعة", date_label: "الموعد", rsvp_note: "نأمل منكم تأكيد حضوركم",
+        invitation_line: "يسرّنا ويشرّفنا حضوركم ومشاركتكم فرحتنا",
+        closing_line: "بحضوركم تزدان أفراحنا، وبكم تكتمل مسرّاتنا.",
+        guest_notes: "يُمنع إحضار الجوال في صالة النساء",
+        photo_url: "", venue_photo_url: "", wishes_enabled: true,
+      },
+      show_countdown: true, show_qr: true,
+    },
+  },
 ];
 
 // قوالب إضافية لتغطية كل أنواع المناسبات في معرض المعاينة

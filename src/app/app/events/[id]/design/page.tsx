@@ -295,6 +295,16 @@ export default function DesignPage() {
               <Field label="برنامج الحفل (كل سطر: الوقت|العنوان)">
                 <Textarea rows={5} value={schema.details.program ?? ""} onChange={(e) => patch({ details: { ...schema.details, program: e.target.value } })} placeholder={"19:00|الاستقبال\n20:00|حفل الزفاف"} dir="ltr" />
               </Field>
+              <Field label="صورة القاعة (اختيارية)" hint="تظهر في قسم الموقع مع رمز QR للخريطة">
+                <Input value={schema.details.venue_photo_url ?? ""} onChange={(e) => patch({ details: { ...schema.details, venue_photo_url: e.target.value } })} placeholder="/api/i/.../asset/... أو رابط https" dir="ltr" />
+              </Field>
+              <Field label="معلومات الضيوف (سطر لكل معلومة)" hint="مثال: يُمنع إحضار الجوال في صالة النساء">
+                <Textarea rows={3} value={schema.details.guest_notes ?? ""} onChange={(e) => patch({ details: { ...schema.details, guest_notes: e.target.value } })} />
+              </Field>
+              <Field label="العبارة الختامية">
+                <Input value={schema.details.closing_line ?? ""} onChange={(e) => patch({ details: { ...schema.details, closing_line: e.target.value } })} placeholder="بحضوركم تزدان أفراحنا، وبكم تكتمل مسرّاتنا." />
+              </Field>
+              <Switch checked={schema.details.wishes_enabled !== false} onChange={(v) => patch({ details: { ...schema.details, wishes_enabled: v } })} label="صندوق التهاني «اترك بصمتك الجميلة» (يُفتح يوم المناسبة)" />
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="الزي المطلوب"><Input value={schema.details.dress_code ?? ""} onChange={(e) => patch({ details: { ...schema.details, dress_code: e.target.value } })} /></Field>
                 <Field label="المواصلات"><Input value={schema.details.transport ?? ""} onChange={(e) => patch({ details: { ...schema.details, transport: e.target.value } })} /></Field>

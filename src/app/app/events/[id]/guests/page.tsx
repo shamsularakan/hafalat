@@ -86,6 +86,7 @@ export default function GuestsPage() {
               {guests.map((g) => (
                 <TR key={g.id}>
                   <TD className="font-semibold">
+                    {g.title && <span className="block text-xs font-normal text-muted">{g.title}</span>}
                     {g.name}
                     {g.conflict ? <Badge tone="warning" className="mr-2">تعارض</Badge> : null}
                   </TD>
@@ -130,7 +131,7 @@ function GuestDialog({ guest, onClose, onSaved }: { guest?: any; onClose: () => 
   const { event, groups } = useEvent();
   const [form, setForm] = React.useState({
     name: guest?.name ?? "", phone: guest?.phone ?? "", email: guest?.email ?? "",
-    group_id: guest?.group_id ?? "", notes: guest?.notes ?? "", section: guest?.section ?? "",
+    group_id: guest?.group_id ?? "", notes: guest?.notes ?? "", section: guest?.section ?? "", title: guest?.title ?? "",
   });
   const [error, setError] = React.useState("");
   const [saving, setSaving] = React.useState(false);
@@ -140,7 +141,7 @@ function GuestDialog({ guest, onClose, onSaved }: { guest?: any; onClose: () => 
   async function save() {
     setSaving(true); setError("");
     try {
-      const payload = { name: form.name, phone: form.phone || undefined, email: form.email || undefined, group_id: form.group_id || null, notes: form.notes || undefined, section: form.section || null };
+      const payload = { name: form.name, phone: form.phone || undefined, email: form.email || undefined, group_id: form.group_id || null, notes: form.notes || undefined, section: form.section || null, title: form.title || null };
       if (guest) await api.patch(`/api/guests/${guest.id}`, payload);
       else await api.post(`/api/events/${event.id}/guests`, payload);
       onSaved();
@@ -150,7 +151,13 @@ function GuestDialog({ guest, onClose, onSaved }: { guest?: any; onClose: () => 
   return (
     <Dialog open onClose={onClose} title={guest ? "تعديل ضيف" : "ضيف جديد"}>
       <div className="space-y-4">
-        <Field label="الاسم" htmlFor="g-name"><Input id="g-name" value={form.name} onChange={set("name")} required /></Field>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[10rem_1fr]">
+          <Field label="اللقب" htmlFor="g-title" hint="يظهر قبل الاسم في الدعوة">
+            <Input id="g-title" list="guest-titles" value={form.title} onChange={set("title")} placeholder="سعادة الأستاذ" />
+            <datalist id="guest-titles">{["سعادة الأستاذ", "سعادة الأستاذة", "الشيخ", "الدكتور", "الدكتورة", "المهندس", "الأخ الكريم", "الأخت الكريمة"].map((t) => <option key={t} value={t} />)}</datalist>
+          </Field>
+          <Field label="الاسم" htmlFor="g-name"><Input id="g-name" value={form.name} onChange={set("name")} required /></Field>
+        </div>
         <Field label="رقم دولي" htmlFor="g-phone" hint="مثال: +9665xxxxxxxx — يستخدم لتطهير التكرارات">
           <Input id="g-phone" dir="ltr" className="text-left" value={form.phone} onChange={set("phone")} placeholder="+9665…" />
         </Field>

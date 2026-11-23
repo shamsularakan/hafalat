@@ -341,3 +341,22 @@ export async function daySheet(ctx: Ctx, eventId: string) {
     steps, contacts,
   };
 }
+
+/* ===== التهاني من الضيوف (اترك بصمتك الجميلة) ===== */
+export async function listWishes(ctx: Ctx, eventId: string) {
+  await requirePlanningAccess(ctx, eventId, "view");
+  return ctx.db.all<any>(
+    `SELECT w.id, w.message, w.hidden, w.created_at, w.updated_at, g.name guest_name, g.title guest_title,
+       (SELECT r.answer FROM rsvps r WHERE r.invitation_id = w.invitation_id ORDER BY r.occurred_at DESC LIMIT 1) answer
+     FROM guest_wishes w JOIN invitations i ON i.id = w.invitation_id JOIN guests g ON g.id = i.guest_id
+     WHERE w.event_id = ? ORDER BY w.created_at DESC`, eventId
+  );
+}
+
+export async function setWishHidden(ctx: Ctx, eventId: string, wishId: string, hidden: boolean) {
+  await requirePlanningAccess(ctx, eventId, "plan");
+  const w = await ctx.db.get("SELECT id FROM guest_wishes WHERE id = ? AND event_id = ?", wishId, eventId);
+  if (!w) err("NOT_FOUND", "التهنئة غير موجودة");
+  await ctx.db.run("UPDATE guest_wishes SET hidden = ? WHERE id = ?", hidden ? 1 : 0, wishId);
+  return { ok: true };
+}

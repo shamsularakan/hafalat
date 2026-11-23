@@ -9,7 +9,7 @@ import { formatDateShort, formatNumber, statusTone, toLocalDatetimeInput } from 
 import { EVENT_STATUS_AR } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, Stat } from "@/components/ui/card";
-import { AlertsCard } from "@/components/planning-widgets";
+import { AlertsCard, WishesCard } from "@/components/planning-widgets";
 import { Badge } from "@/components/ui/badge";
 import { Input, Field, Switch } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
@@ -96,6 +96,7 @@ export default function EventOverviewPage() {
       ) : <Loading label="جارٍ تحميل الإحصاءات…" />}
 
       <AlertsCard compact />
+      <WishesCard />
 
       <div className="grid gap-5 lg:grid-cols-2">
         {/* التفاصيل */}

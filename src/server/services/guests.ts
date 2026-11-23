@@ -24,6 +24,7 @@ export interface GuestRow {
   conflict: number;
   import_batch_id: string | null;
   section: "men" | "women" | null;
+  title: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -46,7 +47,14 @@ export interface GuestInput {
   locale?: string;
   /** قسم الضيف: رجال / نساء (اختياري) */
   section?: "men" | "women" | null;
+  /** لقب المدعو كما يظهر في الدعوة: «سعادة الأستاذ»، «الشيخ»… */
+  title?: string | null;
 }
+
+const cleanTitle = (t: unknown) => {
+  const s = String(t ?? "").trim().slice(0, 60);
+  return s || null;
+};
 
 /** يقبل men/women أو رجال/نساء من الواجهة وملفات CSV */
 export function normalizeSection(v: unknown): "men" | "women" | null {
@@ -95,11 +103,11 @@ async function insertGuest(db: DB, orgId: string, eventId: string, input: GuestI
   }
   const id = newId();
   (await db.run(
-    `INSERT INTO guests (id, event_id, organization_id, inviter_id, original_inviter_id, group_id, name, phone, phone_hash, email, locale, notes, import_batch_id, section)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO guests (id, event_id, organization_id, inviter_id, original_inviter_id, group_id, name, phone, phone_hash, email, locale, notes, import_batch_id, section, title)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     id, eventId, orgId, inviterId, inviterId, input.group_id ?? null,
     input.name.trim(), phone, ph, input.email?.trim().toLowerCase() ?? null,
-    input.locale ?? "ar", input.notes ?? null, batchId, normalizeSection(input.section)
+    input.locale ?? "ar", input.notes ?? null, batchId, normalizeSection(input.section), cleanTitle(input.title)
   ));
   return (await db.get<GuestRow>("SELECT * FROM guests WHERE id = ?", id))!;
 }
@@ -146,12 +154,13 @@ export async function updateGuest(ctx: Ctx, guestId: string, input: Partial<Gues
   }
   (await ctx.db.run(
     `UPDATE guests SET name = COALESCE(?, name), phone = ?, phone_hash = ?, email = COALESCE(?, email),
-     group_id = COALESCE(?, group_id), notes = COALESCE(?, notes), section = ?, updated_at = ? WHERE id = ?`,
+     group_id = COALESCE(?, group_id), notes = COALESCE(?, notes), section = ?, title = ?, updated_at = ? WHERE id = ?`,
     input.name?.trim() ?? null,
     phone === undefined ? g.phone : phone,
     ph === undefined ? g.phone_hash : ph,
     input.email ?? null, input.group_id ?? null, input.notes ?? null,
-    input.section === undefined ? g.section ?? null : normalizeSection(input.section), nowIso(), guestId
+    input.section === undefined ? g.section ?? null : normalizeSection(input.section),
+    input.title === undefined ? g.title ?? null : cleanTitle(input.title), nowIso(), guestId
   ));
   return (await ctx.db.get<GuestRow>("SELECT * FROM guests WHERE id = ?", guestId))!;
 }
@@ -203,7 +212,7 @@ export async function importGuests(
   if (rows.length < 2) err("VALIDATION", "الملف فارغ أو بلا صفوف بيانات");
   const header = rows[0].map((h) => h.trim().toLowerCase());
   const defaultMap: Record<string, string> = {
-    name: "الاسم", phone: "الهاتف", email: "البريد", group: "الفئة", notes: "ملاحظات", section: "القسم",
+    name: "الاسم", phone: "الهاتف", email: "البريد", group: "الفئة", notes: "ملاحظات", section: "القسم", title: "اللقب",
   };
   const mapping = opts.mapping ?? {};
   const colIndex = (field: string): number => {
@@ -215,10 +224,11 @@ export async function importGuests(
       group: ["الفئة", "فئة", "group", "category", "التصنيف"],
       notes: ["ملاحظات", "notes", "ملاحظة"],
       section: ["القسم", "قسم", "section", "الجنس", "gender"],
+      title: ["اللقب", "لقب", "title", "الصفة"],
     };
     return header.findIndex((h) => h === wanted || (aliases[field] ?? []).includes(h));
   };
-  const idx = { name: colIndex("name"), phone: colIndex("phone"), email: colIndex("email"), group: colIndex("group"), notes: colIndex("notes"), section: colIndex("section") };
+  const idx = { name: colIndex("name"), phone: colIndex("phone"), email: colIndex("email"), group: colIndex("group"), notes: colIndex("notes"), section: colIndex("section"), title: colIndex("title") };
   if (idx.name < 0) err("VALIDATION", "عمود الاسم غير موجود في الملف");
 
   const groups = (await ctx.db.all<{ id: string; name: string }>("SELECT id, name FROM guest_groups WHERE event_id = ?", eventId));
@@ -276,6 +286,7 @@ export async function importGuests(
           group_id: grp?.id ?? null,
           notes: idx.notes >= 0 ? (rows[r.row - 1][idx.notes] ?? "") : undefined,
           section: idx.section >= 0 ? normalizeSection(rows[r.row - 1][idx.section]) : null,
+          title: idx.title >= 0 ? rows[r.row - 1][idx.title] : null,
         }, inviterId, batchId, ctx.actor.user.id));
         inserted++;
       } catch (e: any) {
@@ -302,8 +313,8 @@ export async function importGuests(
 export async function exportGuestsCsv(ctx: Ctx, eventId: string): Promise<string> {
   const guests = (await listGuests(ctx, eventId));
   return toCsv(
-    ["الاسم", "الهاتف", "البريد", "الفئة", "القسم", "الداعي", "حالة الدعوة", "تاريخ الإضافة"],
-    guests.map((g: any) => [g.name, g.phone, g.email, g.group_name, g.section === "men" ? "رجال" : g.section === "women" ? "نساء" : "", g.inviter_name ?? "المالك", g.invitation_status ?? "", g.created_at])
+    ["اللقب", "الاسم", "الهاتف", "البريد", "الفئة", "القسم", "الداعي", "حالة الدعوة", "تاريخ الإضافة"],
+    guests.map((g: any) => [g.title ?? "", g.name, g.phone, g.email, g.group_name, g.section === "men" ? "رجال" : g.section === "women" ? "نساء" : "", g.inviter_name ?? "المالك", g.invitation_status ?? "", g.created_at])
   );
 }
 
