@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+/* ===== Design Tokens — هوية ليلتنا من واجهة الشاشات الصغيرة =====
+   #EDE9E6 فاتح · #C99A6B ذهبي · #5A4A44 بني · #4F6B5F أخضر */
+@theme {
+  --color-cream-50: #FBF8F5;
+  --color-cream-100: #F6F1EC;
+  --color-cream-200: #EDE9E6;
+  --color-sand-300: #E2D3C3;
+  --color-gold-400: #C99A70;
+  --color-gold-500: #B88655;
+  --color-brown-600: #62534F;
+  --color-brown-700: #4A3B36;
+  --color-forest-500: #5E796F;
+  --color-forest-600: #4A6359;
+
+  /* أسماء قديمة تُستخدم في المكوّنات → قيم الهوية الجديدة */
+  --color-navy-950: #4A3B36;
+  --color-navy-900: #5A4A44;
+  --color-navy-800: #6B574F;
+  --color-navy-700: #7D675E;
+  --color-lime-400: #C99A6B;
+  --color-lime-500: #B88655;
+  --color-lime-100: #F3E6D9;
+  --color-ivory: #EDE9E6;
+  --color-ivory-soft: #FBF8F5;
+  --color-muted: #8A7A70;
+  --color-brand-orange: #B88655;
+  --color-success: #4F6B5F;
+  --color-danger: #A24B3F;
+
+  /* ثمانية: Thmanyah Serif Display/Serif Text + Sans عند توفر الترخيص */
+  --font-sans: "Thmanyah Sans", "IBM Plex Sans Arabic", "Noto Kufi Arabic", "Segoe UI", Tahoma, Arial, sans-serif;
+  --font-display: "Thmanyah Serif Display", "Amiri", "Noto Naskh Arabic", "Times New Roman", serif;
+  --font-text: "Thmanyah Serif Text", "Amiri", "Noto Naskh Arabic", Georgia, serif;
+
+  --radius-card: 1.25rem;
+  --animate-fade-up: fade-up 0.35s ease-out both;
+  --animate-fade-in: fade-in 0.25s ease-out both;
+  --animate-pop: pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ===== أساس RTL ===== */
+html {
+  direction: rtl;
+}
+body {
+  background: var(--color-ivory-soft);
+  color: var(--color-navy-950);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* منع أي تمرير أفقي عرضي على الجوال مع الحفاظ على sticky */
+  overflow-x: clip;
+  -webkit-tap-highlight-color: transparent;
+}
+::selection {
+  background: var(--color-lime-400);
+  color: var(--color-navy-950);
+}
+:focus-visible {
+  outline: 2px solid var(--color-lime-500);
+  outline-offset: 2px;
+}
+
+/* احترام تقليل الحركة (AC-14) */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* شريط تمرير هادئ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ivory) transparent;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* بطاقة الدعوة بنسبة الجوال 9:16 */
+.invitation-frame {
+  aspect-ratio: 9 / 16;
+  max-height: 78vh;
+}
