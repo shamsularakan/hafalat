@@ -7,9 +7,10 @@ import crypto from "node:crypto";
  * لا يحتوي QR على أي بيانات شخصية — فقط رابط الدعوة.
  */
 function secret(): string {
-  return (
-    process.env.DAWAT_SECRET ?? "dev-only-change-me-to-a-long-random-secret"
-  );
+  const s = process.env.DAWAT_SECRET;
+  // على Vercel لا نقبل المفتاح الافتراضي المكشوف في الكود — يُضبط من Settings › Environment Variables
+  if (!s && process.env.VERCEL) throw new Error("DAWAT_SECRET غير مضبوط في إعدادات النشر");
+  return s ?? "dev-only-change-me-to-a-long-random-secret";
 }
 
 export function deriveToken(invitationId: string, nonce: string): string {

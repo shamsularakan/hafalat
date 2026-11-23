@@ -5,7 +5,6 @@
   "env": {
     "DAWAT_DB_PATH": "/tmp/dawat.db",
     "DAWAT_UPLOAD_DIR": "/tmp/dawat-uploads",
-    "DAWAT_SECRET": "laylatna-prod-change-this-secret-in-vercel-dashboard",
     "DAWAT_PUBLIC_URL": "https://hafalat-nine.vercel.app",
     "DAWAT_COOKIE_SECURE": "true"
   }
